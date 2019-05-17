@@ -1,0 +1,6 @@
+[log]
+format = "logfmt"
+
+[healthcheck]
+listenAddress = "127.0.0.1:1234"
+endpoint = "/healthz"
