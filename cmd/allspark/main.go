@@ -74,6 +74,9 @@ func main() {
 	a.AddRequestsFromStringSlice(viper.GetStringSlice("requests"))
 
 	switch viper.GetString("workload") {
+	case "Echo":
+		str := viper.GetString("ECHO_STR")
+		a.SetWorkload(server.NewEchoWorkload(str, logger))
 	case "PI":
 		count := viper.GetInt("PI_COUNT")
 		if count < 1 {
