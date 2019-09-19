@@ -28,6 +28,23 @@ import (
 	"github.com/banzaicloud/allspark/internal/platform/log"
 )
 
+var (
+	headersToPropagate = []string{
+		"X-Request-Id",
+		"X-B3-Parentspanid",
+		"X-B3-Traceid",
+		"X-B3-Spanid",
+		"X-B3-Sampled",
+		"X-B3-Flags",
+		"X-Ot-Span-Context",
+		"X-Datadog-Trace-Id",
+		"X-Datadog-Parent-Id",
+		"X-Datadog-Sampled",
+		"End-User",
+		"User-Agent",
+	}
+)
+
 func New(config Config, logger log.Logger, errorHandler emperror.Handler) *Server {
 	return &Server{
 		requests: make([]Request, 0),
@@ -101,7 +118,7 @@ func (s *Server) AddRequestsFromStringSlice(reqs []string) {
 func (s *Server) Run() {
 	r := gin.New()
 	r.GET(s.endpoint, func(c *gin.Context) {
-		s.doRequests()
+		s.doRequests(c.Request.Header)
 		response, contentType, err := s.runWorkload()
 		if err != nil {
 			ginErr := c.AbortWithError(503, err)
@@ -131,27 +148,30 @@ func (s *Server) runWorkload() (string, string, error) {
 	return response, contentType, nil
 }
 
-func (s *Server) doRequests() {
+func (s *Server) doRequests(incomingRequestHeaders http.Header) {
 	var wg sync.WaitGroup
 
 	for _, request := range s.requests {
 		wg.Add(1)
 		go func(srv *Server, request Request) {
 			defer wg.Done()
-			request.Do(srv)
+			request.Do(incomingRequestHeaders, srv)
 		}(s, request)
 	}
 
 	wg.Wait()
 }
 
-func (request Request) Do(s *Server) {
+func (request Request) Do(incomingRequestHeaders http.Header, s *Server) {
 	var i uint
+	httpClient := &http.Client{}
 	for i = 0; i < request.Count; i++ {
 		s.logger.WithFields(log.Fields{
 			"url": request.URL,
 		}).Info("outgoing request")
-		response, err := http.Get(request.URL)
+		httpReq, _ := http.NewRequest("GET", request.URL, nil)
+		propagateHeaders(incomingRequestHeaders, httpReq)
+		response, err := httpClient.Do(httpReq)
 		if err != nil {
 			s.logger.WithFields(log.Fields{
 				"url": request.URL,
@@ -162,5 +182,14 @@ func (request Request) Do(s *Server) {
 			"url":          request.URL,
 			"responseCode": response.StatusCode,
 		}).Info("response to outgoing request")
+	}
+}
+
+func propagateHeaders(incomingRequestHeaders http.Header, httpReq *http.Request) {
+	for _, header := range headersToPropagate {
+		val := incomingRequestHeaders[header]
+		if len(val) != 0 {
+			httpReq.Header[header] = val
+		}
 	}
 }
