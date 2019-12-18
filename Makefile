@@ -8,7 +8,7 @@ DOCKER_IMAGE ?= banzaicloud/allspark
 # Build variables
 BUILD_DIR ?= build
 BUILD_PACKAGE = ${PACKAGE}/cmd/allspark
-VERSION ?= $(shell git symbolic-ref -q --short HEAD || git describe --tags --exact-match)
+VERSION ?= $(shell (git symbolic-ref -q --short HEAD || git describe --tags --exact-match) | tr "/" "-")
 COMMIT_HASH ?= $(shell git rev-parse --short HEAD 2>/dev/null)
 BUILD_DATE ?= $(shell date +%FT%T%z)
 LDFLAGS += -X main.version=${VERSION} -X main.commitHash=${COMMIT_HASH} -X main.buildDate=${BUILD_DATE}
@@ -26,7 +26,7 @@ endif
 DOCKER_TAG ?= ${VERSION}
 
 # Dependency versions
-GOLANGCI_VERSION = 1.15.0
+GOLANGCI_VERSION = 1.21.0
 GOLANG_VERSION = 1.12
 
 # Add the ability to override some variables
@@ -36,6 +36,10 @@ GOLANG_VERSION = 1.12
 .PHONY: clean
 clean: ## Clean the working area and the project
 	rm -rf bin/ ${BUILD_DIR}/ vendor/
+
+.PHONY: pb
+pb:
+	protoc -I internal/pb allspark.proto --go_out=plugins=grpc:internal/pb
 
 .PHONY: build
 build: ## Build a binary

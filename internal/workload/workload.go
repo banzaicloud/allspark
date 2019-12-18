@@ -12,27 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package healthcheck
+package workload
 
-import (
-	"net/http"
-
-	"emperror.dev/emperror"
-	"github.com/gin-gonic/gin"
-
-	"github.com/banzaicloud/allspark/internal/platform/log"
-)
-
-// New runs the health check endpoint
-func New(config Config, logger log.Logger, errorHandler emperror.Handler) {
-	logger.WithFields(log.Fields{"address": config.ListenAddress, "endpoint": config.Endpoint}).Info("starting HEALTHCHECK server")
-
-	r := gin.New()
-	r.GET(config.Endpoint, func(c *gin.Context) {
-		c.String(http.StatusOK, "ok")
-	})
-	err := r.Run(config.ListenAddress)
-	if err != nil {
-		errorHandler.Handle(err)
-	}
+type Workload interface {
+	GetName() string
+	Execute() (string, string, error)
 }

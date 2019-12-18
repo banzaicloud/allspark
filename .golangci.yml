@@ -1,0 +1,26 @@
+run:
+  skip-dirs:
+    - .gen
+
+linters:
+  enable-all: true
+  disable:
+    - lll
+    - gochecknoinits
+    - gochecknoglobals
+    - goconst
+    - funlen
+    - gocritic
+    - godox
+    - wsl
+
+linters-settings:
+  golint:
+    min-confidence: 0.1
+  gocyclo:
+    min-complexity: 40
+  goimports:
+    local-prefixes: github.com/banzaicloud/backyards
+  gocritic:
+    disabled-checks:
+      - ifElseChain

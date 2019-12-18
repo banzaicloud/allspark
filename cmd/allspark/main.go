@@ -17,16 +17,22 @@ package main
 import (
 	"fmt"
 	"os"
+	"sync"
 
-	"github.com/goph/emperror"
+	"emperror.dev/emperror"
+	"emperror.dev/errors"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/banzaicloud/allspark/internal/grpcserver"
+	"github.com/banzaicloud/allspark/internal/httpserver"
 	"github.com/banzaicloud/allspark/internal/platform/errorhandler"
 	"github.com/banzaicloud/allspark/internal/platform/healthcheck"
 	"github.com/banzaicloud/allspark/internal/platform/log"
-	"github.com/banzaicloud/allspark/internal/server"
+	"github.com/banzaicloud/allspark/internal/request"
+	"github.com/banzaicloud/allspark/internal/tcpserver"
+	"github.com/banzaicloud/allspark/internal/workload"
 )
 
 // nolint: gochecknoinits
@@ -50,7 +56,7 @@ func main() {
 		c := viper.AllSettings()
 		y, err := yaml.Marshal(c)
 		if err != nil {
-			panic(emperror.Wrap(err, "failed to dump configuration"))
+			panic(errors.WrapIf(err, "failed to dump configuration"))
 		}
 		fmt.Print(string(y))
 		os.Exit(0)
@@ -63,26 +69,94 @@ func main() {
 	errorHandler := errorhandler.ErrorHandler(logger)
 	defer emperror.HandleRecover(errorHandler)
 
-	logger.Infof("Starting %s", FriendlyServiceName)
+	logger.Infof("starting %s", FriendlyServiceName)
 
 	// Starts health check HTTP server
 	go func() {
 		healthcheck.New(configuration.Healthcheck, logger, errorHandler)
 	}()
 
-	a := server.New(configuration.Server, logger, errorHandler)
-	a.AddRequestsFromStringSlice(viper.GetStringSlice("requests"))
+	requests, err := request.CreateRequestsFromStringSlice(viper.GetStringSlice("requests"), logger.WithField("server", "any"))
+	if err != nil {
+		panic(err)
+	}
 
+	var wl workload.Workload
 	switch viper.GetString("workload") {
 	case "Echo":
 		str := viper.GetString("ECHO_STR")
-		a.SetWorkload(server.NewEchoWorkload(str, logger))
+		wl = workload.NewEchoWorkload(str, logger)
 	case "PI":
 		count := viper.GetInt("PI_COUNT")
 		if count < 1 {
 			count = 50000
 		}
-		a.SetWorkload(server.NewPIWorkload(uint(count), logger))
+		wl = workload.NewPIWorkload(uint(count), logger)
 	}
-	a.Run()
+	var wg sync.WaitGroup
+
+	// HTTP server
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		srv := httpserver.New(configuration.HTTPServer, logger, errorHandler)
+		if wl != nil {
+			srv.SetWorkload(wl)
+		}
+
+		httpRequests, err := request.CreateRequestsFromStringSlice(viper.GetStringSlice("httpRequests"), logger.WithField("server", "http"))
+		if err != nil {
+			panic(err)
+		}
+		if len(httpRequests) == 0 {
+			httpRequests = requests
+		}
+
+		srv.SetRequests(httpRequests)
+		srv.Run()
+	}()
+
+	// GRPC server
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		srv := grpcserver.New(configuration.GRPCServer, logger, errorHandler)
+		if wl != nil {
+			srv.SetWorkload(wl)
+		}
+
+		grpcRequests, err := request.CreateRequestsFromStringSlice(viper.GetStringSlice("grpcRequests"), logger.WithField("server", "grpc"))
+		if err != nil {
+			panic(err)
+		}
+		if len(grpcRequests) == 0 {
+			grpcRequests = requests
+		}
+
+		srv.SetRequests(grpcRequests)
+		srv.Run()
+	}()
+
+	// TCP server
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		srv := tcpserver.New(configuration.TCPServer, logger, errorHandler)
+		if wl != nil {
+			srv.SetWorkload(wl)
+		}
+
+		tcpRequests, err := request.CreateRequestsFromStringSlice(viper.GetStringSlice("tcpRequests"), logger.WithField("server", "tcp"))
+		if err != nil {
+			panic(err)
+		}
+		if len(tcpRequests) == 0 {
+			tcpRequests = requests
+		}
+
+		srv.SetRequests(tcpRequests)
+		srv.Run()
+	}()
+
+	wg.Wait()
 }

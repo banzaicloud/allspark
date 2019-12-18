@@ -12,27 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package healthcheck
+package grpcserver
 
-import (
-	"net/http"
+type Config struct {
+	ListenAddress string `mapstructure:"listenAddress"`
+}
 
-	"emperror.dev/emperror"
-	"github.com/gin-gonic/gin"
-
-	"github.com/banzaicloud/allspark/internal/platform/log"
-)
-
-// New runs the health check endpoint
-func New(config Config, logger log.Logger, errorHandler emperror.Handler) {
-	logger.WithFields(log.Fields{"address": config.ListenAddress, "endpoint": config.Endpoint}).Info("starting HEALTHCHECK server")
-
-	r := gin.New()
-	r.GET(config.Endpoint, func(c *gin.Context) {
-		c.String(http.StatusOK, "ok")
-	})
-	err := r.Run(config.ListenAddress)
-	if err != nil {
-		errorHandler.Handle(err)
+// Validate checks that the configuration is valid.
+func (c Config) Validate() (Config, error) {
+	if c.ListenAddress == "" {
+		c.ListenAddress = "0.0.0.0:8082"
 	}
+
+	return c, nil
 }

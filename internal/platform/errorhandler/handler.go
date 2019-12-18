@@ -15,22 +15,22 @@
 package errorhandler
 
 import (
-	"github.com/goph/emperror"
+	"emperror.dev/emperror"
 
 	"github.com/banzaicloud/allspark/internal/platform/log"
 )
 
-type handler struct {
+type Handler struct {
 	logger log.Logger
 }
 
 // NewHandler returns a handler which logs errors using the platform logger
-func NewHandler(logger log.Logger) *handler {
-	return &handler{logger: logger}
+func NewHandler(logger log.Logger) *Handler {
+	return &Handler{logger: logger}
 }
 
 // Handle logs an error
-func (h *handler) Handle(err error) {
+func (h *Handler) Handle(err error) {
 	var ctx map[string]interface{}
 
 	// Extract context from the error and attach it to the log

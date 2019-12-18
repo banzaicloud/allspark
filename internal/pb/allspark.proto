@@ -12,34 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+syntax = "proto3";
 
-import (
-	"github.com/banzaicloud/allspark/internal/platform/log"
-)
+option go_package = "pb";
 
-const EchoWorkloadName = "Echo"
-
-type EchoWorkload struct {
-	name string
-	str  string
-
-	logger log.Logger
+service allspark {
+    rpc Incoming(params) returns(msg);
 }
 
-func NewEchoWorkload(str string, logger log.Logger) Workload {
-	return &EchoWorkload{
-		name: EchoWorkloadName,
-		str:  str,
-
-		logger: logger,
-	}
-}
-
-func (w *EchoWorkload) GetName() string {
-	return w.name
-}
-
-func (w *EchoWorkload) Execute() (string, string, error) {
-	return w.str, "text/plain", nil
+message params {}
+message msg {
+    string response = 1;
 }

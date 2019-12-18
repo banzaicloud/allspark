@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package workload
 
 import (
 	"math"
@@ -23,7 +23,7 @@ import (
 const PIWorkloadName = "PI"
 
 type PIWorkload struct {
-	name   string
+	name  string
 	count uint
 
 	logger log.Logger
@@ -31,7 +31,7 @@ type PIWorkload struct {
 
 func NewPIWorkload(count uint, logger log.Logger) Workload {
 	return &PIWorkload{
-		name:   PIWorkloadName,
+		name:  PIWorkloadName,
 		count: count,
 
 		logger: logger,
@@ -53,10 +53,10 @@ func (w *PIWorkload) Execute() (string, string, error) {
 // approximation of pi.
 func (w *PIWorkload) pi(n uint) float64 {
 	ch := make(chan float64)
+	f := 0.0
 	for k := uint(0); k <= n; k++ {
 		go w.term(ch, float64(k))
 	}
-	f := 0.0
 	for k := uint(0); k <= n; k++ {
 		f += <-ch
 	}
