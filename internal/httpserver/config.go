@@ -12,31 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package httpserver
 
-import (
-	"github.com/banzaicloud/allspark/internal/platform/log"
-	"github.com/goph/emperror"
-)
-
-type Request struct {
-	URL   string `json:"URL"`
-	Count uint   `json:"count"`
+type Config struct {
+	ListenAddress string `mapstructure:"listenAddress"`
+	Endpoint      string `mapstructure:"endpoint"`
 }
 
-type Workload interface {
-	GetName() string
-	Execute() (string, string, error)
+// Validate checks that the configuration is valid.
+func (c Config) Validate() (Config, error) {
+	if c.ListenAddress == "" {
+		c.ListenAddress = "0.0.0.0:8080"
+	}
+
+	if c.Endpoint == "" {
+		c.Endpoint = "/"
+	}
+
+	return c, nil
 }
-
-type Server struct {
-	requests []Request
-	workload Workload
-
-	listenAddress string
-	endpoint      string
-
-	errorHandler emperror.Handler
-	logger       log.Logger
-}
-

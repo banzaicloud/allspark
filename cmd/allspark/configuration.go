@@ -20,13 +20,15 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/goph/emperror"
+	"emperror.dev/errors"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
+	"github.com/banzaicloud/allspark/internal/grpcserver"
+	"github.com/banzaicloud/allspark/internal/httpserver"
 	"github.com/banzaicloud/allspark/internal/platform/healthcheck"
 	"github.com/banzaicloud/allspark/internal/platform/log"
-	"github.com/banzaicloud/allspark/internal/server"
+	"github.com/banzaicloud/allspark/internal/tcpserver"
 )
 
 // main configuration
@@ -47,29 +49,47 @@ type Config struct {
 	// Healthcheck configuration
 	Healthcheck healthcheck.Config `mapstructure:"healthcheck"`
 
-	// Server
-	Server server.Config `mapstructure:"server"`
+	// HTTP server configuration
+	HTTPServer httpserver.Config `mapstructure:"httpServer"`
+
+	// GRPC server configuration
+	GRPCServer grpcserver.Config `mapstructure:"grpcServer"`
+
+	// TCP server configuration
+	TCPServer tcpserver.Config `mapstructure:"tcpServer"`
 }
 
 // Validate validates the configuration
 func (c Config) Validate() (Config, error) {
-	config, err := c.Log.Validate()
+	logConfig, err := c.Log.Validate()
 	if err != nil {
-		return c, emperror.Wrap(err, "could not validate log config")
+		return c, errors.WrapIf(err, "could not validate log config")
 	}
-	c.Log = config
+	c.Log = logConfig
 
-	config2, err := c.Healthcheck.Validate()
+	healthCheckConfig, err := c.Healthcheck.Validate()
 	if err != nil {
-		return c, emperror.Wrap(err, "could not validate healthcheck config")
+		return c, errors.WrapIf(err, "could not validate healthcheck config")
 	}
-	c.Healthcheck = config2
+	c.Healthcheck = healthCheckConfig
 
-	config3, err := c.Server.Validate()
+	serverConfig, err := c.HTTPServer.Validate()
 	if err != nil {
-		return c, emperror.Wrap(err, "could not validate server config")
+		return c, errors.WrapIf(err, "could not validate HTTP server config")
 	}
-	c.Server = config3
+	c.HTTPServer = serverConfig
+
+	grpcServerConfig, err := c.GRPCServer.Validate()
+	if err != nil {
+		return c, errors.WrapIf(err, "could not validate GRPC server config")
+	}
+	c.GRPCServer = grpcServerConfig
+
+	tcpServerConfig, err := c.TCPServer.Validate()
+	if err != nil {
+		return c, errors.WrapIf(err, "could not validate TCP server config")
+	}
+	c.TCPServer = tcpServerConfig
 
 	return c, nil
 }
@@ -80,17 +100,17 @@ func configure() {
 
 	err := viper.ReadInConfig()
 	if _, ok := err.(viper.ConfigFileNotFoundError); err != nil && !ok {
-		panic(emperror.Wrap(err, "failed to read configuration"))
+		panic(errors.WrapIf(err, "failed to read configuration"))
 	}
 	bindEnvs(configuration)
 	err = viper.Unmarshal(&configuration)
 	if err != nil {
-		panic(emperror.Wrap(err, "failed to unmarshal configuration"))
+		panic(errors.WrapIf(err, "failed to unmarshal configuration"))
 	}
 
 	configuration, err = configuration.Validate()
 	if err != nil {
-		panic(emperror.Wrap(err, "cloud not validate configuration"))
+		panic(errors.WrapIf(err, "cloud not validate configuration"))
 	}
 }
 
@@ -127,7 +147,7 @@ func bindEnvs(iface interface{}, parts ...string) {
 		default:
 			err := viper.BindEnv(strings.Join(append(parts, tv), "."))
 			if err != nil {
-				panic(emperror.Wrap(err, "could not bind env variable"))
+				panic(errors.WrapIf(err, "could not bind env variable"))
 			}
 		}
 	}

@@ -18,13 +18,18 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/goph/emperror"
+	"emperror.dev/emperror"
+	"emperror.dev/errors"
 
 	"github.com/banzaicloud/allspark/internal/platform/log"
 )
 
 var errorHandler emperror.Handler
 var errorHandlerOnce sync.Once
+
+type stackTracer interface {
+	StackTrace() errors.StackTrace
+}
 
 // ErrorHandler returns an error handler.
 func ErrorHandler(logger log.Logger) emperror.Handler {
@@ -39,14 +44,17 @@ func newErrorHandler(logger log.Logger) emperror.Handler {
 	loggerHandler := NewHandler(logger)
 
 	return emperror.HandlerFunc(func(err error) {
-		if stackTrace, ok := emperror.StackTrace(err); ok && len(stackTrace) > 0 {
-			frame := stackTrace[0]
+		if st, ok := emperror.ExposeStackTrace(err).(stackTracer); ok {
+			stackTrace := st.StackTrace()
+			if len(stackTrace) > 0 {
+				frame := stackTrace[0]
 
-			err = emperror.With(
-				err,
-				"func", fmt.Sprintf("%n", frame), // nolint: govet
-				"file", fmt.Sprintf("%v", frame), // nolint: govet
-			)
+				err = emperror.With(
+					err,
+					"func", fmt.Sprintf("%n", frame), // nolint: govet
+					"file", fmt.Sprintf("%v", frame), // nolint: govet
+				)
+			}
 		}
 
 		loggerHandler.Handle(err)
