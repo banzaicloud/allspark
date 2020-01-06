@@ -2,7 +2,7 @@ ARG GO_VERSION=1.12
 
 FROM golang:${GO_VERSION}-alpine AS builder
 
-RUN apk add --update --no-cache ca-certificates=20190108-r0 make=4.2.1-r2 git=2.22.0-r0 curl=7.66.0-r0
+RUN apk add --update --no-cache ca-certificates=20191127-r0 make=4.2.1-r2 git=2.24.1-r0 curl=7.67.0-r0
 
 ARG PACKAGE=/build
 
