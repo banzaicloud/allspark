@@ -47,6 +47,7 @@ func (request HTTPRequest) Do(incomingRequestHeaders http.Header, logger log.Log
 		}).Error(err.Error())
 		return
 	}
+	httpReq.Close = true
 
 	propagateHeaders(incomingRequestHeaders, httpReq)
 
@@ -57,8 +58,8 @@ func (request HTTPRequest) Do(incomingRequestHeaders http.Header, logger log.Log
 		}).Error(err.Error())
 		return
 	}
-
 	defer response.Body.Close()
+
 	logger.WithFields(log.Fields{
 		"url":           request.URL,
 		"responseCode":  response.StatusCode,
