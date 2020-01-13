@@ -107,8 +107,6 @@ func (s *Server) Incoming(ctx context.Context, x *pb.Params) (*pb.Msg, error) {
 		}
 	}
 
-	s.logger.Infof("\n\nheaders2 %#v\n\n", headers)
-
 	s.doRequests(headers)
 
 	if s.workload == nil {
