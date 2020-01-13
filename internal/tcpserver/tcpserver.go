@@ -78,8 +78,19 @@ func (s *Server) Run() {
 
 func (s *Server) Incoming(c net.Conn) {
 	s.logger.Info("incoming TCP request")
+	defer func() {
+		c.Close()
+	}()
 
-	s.doRequests(nil)
+	go s.doRequests(nil)
+
+	tmp := make([]byte, 4096)
+	for {
+		_, err := c.Read(tmp)
+		if err != nil {
+			break
+		}
+	}
 
 	if s.workload == nil {
 		return

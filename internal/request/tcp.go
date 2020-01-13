@@ -41,6 +41,9 @@ func (request TCPRequest) Do(incomingRequestHeaders http.Header, logger log.Logg
 		logger.Error(errors.WrapIf(err, "could not connect"))
 		return
 	}
+	defer func() {
+		conn.Close()
+	}()
 
 	s := strings.Repeat(".", 1024)
 
