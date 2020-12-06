@@ -15,6 +15,7 @@
 package httpserver
 
 import (
+	"math/rand"
 	"net/http"
 	"sync"
 
@@ -30,6 +31,7 @@ import (
 type Server struct {
 	requests request.Requests
 	workload workload.Workload
+	errorRate float64
 
 	listenAddress string
 	endpoint      string
@@ -60,6 +62,10 @@ func (s *Server) SetRequests(requests request.Requests) {
 	s.requests = requests
 }
 
+func (s *Server) SetErrorRate(rate float64) {
+	s.errorRate = rate
+}
+
 func (s *Server) Run() {
 	r := gin.New()
 	r.GET(s.endpoint, func(c *gin.Context) {
@@ -72,7 +78,11 @@ func (s *Server) Run() {
 			}
 			return
 		}
-		c.Data(http.StatusOK, contentType, []byte(response))
+		if rand.Float64() < s.errorRate {
+			c.Data(http.StatusServiceUnavailable, contentType, nil)
+		} else {
+			c.Data(http.StatusOK, contentType, []byte(response))
+		}
 	})
 	s.logger.WithField("address", s.listenAddress).Info("starting HTTP server")
 	err := r.Run(s.listenAddress)

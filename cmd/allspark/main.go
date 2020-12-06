@@ -95,6 +95,11 @@ func main() {
 	}
 	var wg sync.WaitGroup
 
+	errorRate := viper.GetFloat64("ERROR_RATE")
+	if errorRate < 0.0 || errorRate > 1.0 {
+		panic(fmt.Sprintf("Error rate (%f) is out of range: [0.0, 1.0]", errorRate))
+	}
+
 	// HTTP server
 	wg.Add(1)
 	go func() {
@@ -113,6 +118,7 @@ func main() {
 		}
 
 		srv.SetRequests(httpRequests)
+		srv.SetErrorRate(errorRate)
 		srv.Run()
 	}()
 
