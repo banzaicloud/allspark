@@ -16,6 +16,7 @@ package request
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -41,9 +42,8 @@ func (request TCPRequest) Do(incomingRequestHeaders http.Header, logger log.Logg
 		logger.Error(errors.WrapIf(err, "could not connect"))
 		return
 	}
-	defer func() {
-		conn.Close()
-	}()
+
+	defer conn.Close()
 
 	s := strings.Repeat(".", 1024)
 
@@ -53,7 +53,7 @@ func (request TCPRequest) Do(incomingRequestHeaders http.Header, logger log.Logg
 	for {
 		sent, err := conn.Write([]byte(s))
 		if err != nil {
-			logger.Error(errors.WrapIf(err, "could not send data"))
+			logger.Error(errors.WrapIf(err, "could not send response"))
 			break
 		}
 		sum += sent
@@ -61,5 +61,24 @@ func (request TCPRequest) Do(incomingRequestHeaders http.Header, logger log.Logg
 			break
 		}
 	}
+
+	// read the response from the server
+	tmp := make([]byte, 256)
+	var sumRead int
+	for {
+		read, err := conn.Read(tmp)
+		if err != nil {
+			if err != io.EOF {
+				logger.Error("read error", err)
+			}
+			break
+		}
+		sumRead += read
+		// the server returns payloadsize / 2 bytes
+		if uint(sumRead) >= request.PayloadSize/2 {
+			break
+		}
+	}
+
 	logger.WithField("bytes", sum).Info("data sent")
 }

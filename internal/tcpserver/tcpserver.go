@@ -15,6 +15,7 @@
 package tcpserver
 
 import (
+	"io"
 	"net"
 	"net/http"
 	"sync"
@@ -64,6 +65,7 @@ func (s *Server) Run() {
 		s.errorHandler.Handle(errors.WrapIf(err, "could not listen"))
 		return
 	}
+	defer lis.Close()
 	s.logger.WithField("address", s.listenAddress).Info("starting TCP server")
 
 	for {
@@ -77,18 +79,24 @@ func (s *Server) Run() {
 }
 
 func (s *Server) Incoming(c net.Conn) {
-	s.logger.Info("incoming TCP request")
-	defer func() {
-		c.Close()
-	}()
+	s.logger.Info("incoming TCP connection")
+	defer c.Close()
 
 	go s.doRequests(nil)
 
-	tmp := make([]byte, 4096)
+	tmp := make([]byte, 256)
 	for {
-		_, err := c.Read(tmp)
+		n, err := c.Read(tmp)
 		if err != nil {
+			if err != io.EOF {
+				s.logger.Error("read error", err)
+			}
 			break
+		}
+		// write only half of the received bytes back
+		_, err = c.Write(tmp[:n/2])
+		if err != nil {
+			s.errorHandler.Handle(errors.WrapIf(err, "could not send data"))
 		}
 	}
 
