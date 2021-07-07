@@ -31,12 +31,15 @@ import (
 	"github.com/banzaicloud/allspark/internal/pb"
 	"github.com/banzaicloud/allspark/internal/platform/log"
 	"github.com/banzaicloud/allspark/internal/request"
+	"github.com/banzaicloud/allspark/internal/sql"
 	"github.com/banzaicloud/allspark/internal/workload"
 )
 
 type Server struct {
 	requests request.Requests
 	workload workload.Workload
+
+	sqlCient *sql.Client
 
 	listenAddress string
 
@@ -63,6 +66,10 @@ func (s *Server) SetWorkload(workload workload.Workload) {
 
 func (s *Server) SetRequests(requests request.Requests) {
 	s.requests = requests
+}
+
+func (s *Server) SetSQLClient(client *sql.Client) {
+	s.sqlCient = client
 }
 
 func (s *Server) Run() {
@@ -108,6 +115,17 @@ func (s *Server) Incoming(ctx context.Context, x *pb.Params) (*pb.Msg, error) {
 	}
 
 	s.doRequests(headers)
+
+	if s.sqlCient != nil {
+		go func() {
+			query, err := s.sqlCient.RunQuery(s.logger)
+			if err != nil {
+				s.logger.WithFields(log.Fields{
+					"query": query,
+				}).Error(err)
+			}
+		}()
+	}
 
 	if s.workload == nil {
 		return &pb.Msg{}, nil
