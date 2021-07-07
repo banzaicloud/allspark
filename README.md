@@ -2,7 +2,7 @@
 
 AllSpark is a simple building block for quickly building web microservice deployments for demo purposes.
 
-It supports at most one workload and arbitary number of subsequent requests to other services that will be called on a single request.
+It supports at most one workload and arbitrary number of subsequent requests to other services that will be called on a single request.
 
 ### Workload
 
