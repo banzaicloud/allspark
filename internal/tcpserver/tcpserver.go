@@ -24,12 +24,15 @@ import (
 
 	"github.com/banzaicloud/allspark/internal/platform/log"
 	"github.com/banzaicloud/allspark/internal/request"
+	"github.com/banzaicloud/allspark/internal/sql"
 	"github.com/banzaicloud/allspark/internal/workload"
 )
 
 type Server struct {
 	requests request.Requests
 	workload workload.Workload
+
+	sqlCient *sql.Client
 
 	listenAddress string
 
@@ -58,6 +61,10 @@ func (s *Server) SetRequests(requests request.Requests) {
 	s.requests = requests
 }
 
+func (s *Server) SetSQLClient(client *sql.Client) {
+	s.sqlCient = client
+}
+
 func (s *Server) Run() {
 	lis, err := net.Listen("tcp", s.listenAddress)
 	if err != nil {
@@ -83,6 +90,17 @@ func (s *Server) Incoming(c net.Conn) {
 	}()
 
 	go s.doRequests(nil)
+
+	if s.sqlCient != nil {
+		go func() {
+			query, err := s.sqlCient.RunQuery(s.logger)
+			if err != nil {
+				s.logger.WithFields(log.Fields{
+					"query": query,
+				}).Error(err)
+			}
+		}()
+	}
 
 	tmp := make([]byte, 4096)
 	for {

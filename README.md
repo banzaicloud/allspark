@@ -63,6 +63,12 @@ spec:
           value: "ratings service response"
         - name: REQUESTS
           value: "http://analytics:8080/#1"
+        - name: SQL_DSN
+          value: "postgresql://username:password@postgres:5432/postgres?sslmode=allow"
+        - name: SQL_QUERY
+          value: "SELECT * FROM pg_tables"
+        - name: SQL_QUERY_REPEAT
+          value: "10"
 ---
 apiVersion: v1
 kind: Service

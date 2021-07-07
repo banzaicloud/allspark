@@ -31,6 +31,7 @@ import (
 	"github.com/banzaicloud/allspark/internal/platform/healthcheck"
 	"github.com/banzaicloud/allspark/internal/platform/log"
 	"github.com/banzaicloud/allspark/internal/request"
+	"github.com/banzaicloud/allspark/internal/sql"
 	"github.com/banzaicloud/allspark/internal/tcpserver"
 	"github.com/banzaicloud/allspark/internal/workload"
 )
@@ -76,6 +77,23 @@ func main() {
 		healthcheck.New(configuration.Healthcheck, logger, errorHandler)
 	}()
 
+	var err error
+	var sqlClient *sql.Client
+	sqlQuery := viper.GetString("sql_query")
+	sqlDSN := viper.GetString("sql_dsn")
+	sqlRepeat := viper.GetInt("sql_query_repeat")
+	if sqlDSN != "" && sqlQuery != "" {
+		sqlClient, err = sql.NewClient(sqlDSN, sqlQuery, sqlRepeat)
+		if err != nil {
+			panic(err)
+		}
+		logger.WithFields(log.Fields{
+			"driver": sqlClient.GetDriver(),
+			"query":  sqlQuery,
+			"repeat": sqlRepeat,
+		}).Info("SQL client initialized")
+	}
+
 	requests, err := request.CreateRequestsFromStringSlice(viper.GetStringSlice("requests"), logger.WithField("server", "any"))
 	if err != nil {
 		panic(err)
@@ -113,6 +131,7 @@ func main() {
 		}
 
 		srv.SetRequests(httpRequests)
+		srv.SetSQLClient(sqlClient)
 		srv.Run()
 	}()
 
@@ -134,6 +153,7 @@ func main() {
 		}
 
 		srv.SetRequests(grpcRequests)
+		srv.SetSQLClient(sqlClient)
 		srv.Run()
 	}()
 
@@ -155,6 +175,7 @@ func main() {
 		}
 
 		srv.SetRequests(tcpRequests)
+		srv.SetSQLClient(sqlClient)
 		srv.Run()
 	}()
 
