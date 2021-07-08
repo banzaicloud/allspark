@@ -77,7 +77,7 @@ func (c *Client) RunQuery(logger log.Logger) (string, error) {
 	if c.conn == nil {
 		c.conn, err = sql.Open(c.driver, c.dsn)
 		if err != nil {
-			return c.query, fmt.Errorf("Unable to connect to database: %v\n", err)
+			return c.query, fmt.Errorf("unable to connect to database: %v\n", err)
 		}
 		c.conn.SetMaxOpenConns(50)
 		c.conn.SetMaxIdleConns(25)
