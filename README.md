@@ -67,7 +67,9 @@ spec:
           value: "postgresql://username:password@postgres:5432/postgres?sslmode=allow"
         - name: SQL_QUERY
           value: "SELECT * FROM pg_tables"
-        - name: SQL_QUERY_REPEAT
+        - name: SQL_QUERY_REPEAT_COUNT
+          value: "2"
+        - name: SQL_QUERY_REPEAT_COUNT_MAX
           value: "10"
 ---
 apiVersion: v1
