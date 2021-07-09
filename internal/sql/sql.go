@@ -17,7 +17,9 @@ package sql
 import (
 	"database/sql"
 	"fmt"
+	"math/rand"
 	"net/url"
+	"time"
 
 	"emperror.dev/errors"
 	// mysql driver
@@ -29,18 +31,21 @@ import (
 
 func init() {
 	sql.Register("postgresql", stdlib.GetDefaultDriver())
+	rand.Seed(time.Now().UnixNano())
 }
 
 type Client struct {
 	driver string
 	dsn    string
 	query  string
-	repeat int
+
+	sqlQueryRepeatCount    int
+	sqlQueryRepeatCountMax int
 
 	conn *sql.DB
 }
 
-func NewClient(dsn, query string, repeat int) (*Client, error) {
+func NewClient(dsn, query string, sqlQueryRepeatCount, sqlQueryRepeatCountMax int) (*Client, error) {
 	u, err := url.Parse(dsn)
 	if err != nil {
 		return nil, err
@@ -59,11 +64,16 @@ func NewClient(dsn, query string, repeat int) (*Client, error) {
 		return nil, errors.Errorf("invalid SQL driver: '%s'", u.Scheme)
 	}
 
+	if sqlQueryRepeatCountMax < sqlQueryRepeatCount {
+		sqlQueryRepeatCountMax = sqlQueryRepeatCount
+	}
+
 	return &Client{
-		driver: driver,
-		dsn:    dsn,
-		query:  query,
-		repeat: repeat,
+		driver:                 driver,
+		dsn:                    dsn,
+		query:                  query,
+		sqlQueryRepeatCount:    sqlQueryRepeatCount,
+		sqlQueryRepeatCountMax: sqlQueryRepeatCountMax,
 	}, nil
 }
 
@@ -83,16 +93,22 @@ func (c *Client) RunQuery(logger log.Logger) (string, error) {
 		c.conn.SetMaxIdleConns(25)
 	}
 
-	for i := 0; i < c.repeat; i++ {
-		rows, err := c.conn.Query(c.query)
-		rows.Close()
+	var count int
+	if c.sqlQueryRepeatCountMax > c.sqlQueryRepeatCount {
+		count = rand.Intn(c.sqlQueryRepeatCountMax-c.sqlQueryRepeatCount+1) + c.sqlQueryRepeatCount
+	}
 
+	logger.WithFields(log.Fields{
+		"query": c.query,
+		"count": count,
+	}).Info("outgoing query")
+
+	for i := 0; i < count; i++ {
+		rows, err := c.conn.Query(c.query)
 		if err != nil {
 			return c.query, fmt.Errorf("query failed: %v\n", err)
 		}
-		logger.WithFields(log.Fields{
-			"query": c.query,
-		}).Info("outgoing query")
+		rows.Close()
 	}
 
 	return c.query, nil

@@ -81,16 +81,18 @@ func main() {
 	var sqlClient *sql.Client
 	sqlQuery := viper.GetString("sql_query")
 	sqlDSN := viper.GetString("sql_dsn")
-	sqlRepeat := viper.GetInt("sql_query_repeat")
+	sqlQueryRepeatCount := viper.GetInt("sql_query_repeat_count")
+	sqlQueryRepeatCountMax := viper.GetInt("sql_query_repeat_count_max")
 	if sqlDSN != "" && sqlQuery != "" {
-		sqlClient, err = sql.NewClient(sqlDSN, sqlQuery, sqlRepeat)
+		sqlClient, err = sql.NewClient(sqlDSN, sqlQuery, sqlQueryRepeatCount, sqlQueryRepeatCountMax)
 		if err != nil {
 			panic(err)
 		}
 		logger.WithFields(log.Fields{
-			"driver": sqlClient.GetDriver(),
-			"query":  sqlQuery,
-			"repeat": sqlRepeat,
+			"driver":              sqlClient.GetDriver(),
+			"query":               sqlQuery,
+			"queryRepeatCount":    sqlQueryRepeatCount,
+			"queryRepeatCountMax": sqlQueryRepeatCountMax,
 		}).Info("SQL client initialized")
 	}
 
