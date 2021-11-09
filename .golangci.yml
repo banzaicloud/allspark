@@ -13,7 +13,7 @@ linters:
     enable:
         - misspell
         - gofmt
-        - golint
+        - revive
         - goimports
     disable:
         - errcheck

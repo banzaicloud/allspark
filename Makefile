@@ -26,8 +26,8 @@ endif
 DOCKER_TAG ?= ${VERSION}
 
 # Dependency versions
-GOLANGCI_VERSION = 1.26.0
-GOLANG_VERSION = 1.12
+GOLANGCI_VERSION = 1.43.0
+GOLANG_VERSION = 1.17
 LICENSEI_VERSION = 0.3.1
 
 # Add the ability to override some variables
@@ -125,6 +125,11 @@ license-check: bin/licensei ## Run license check
 .PHONY: license-cache
 license-cache: bin/licensei ## Generate license cache
 	bin/licensei cache
+
+.PHONY: tidy
+tidy: ## Execute go mod tidy
+	go mod tidy
+	go mod download all
 
 .PHONY: list
 list: ## List all make targets
