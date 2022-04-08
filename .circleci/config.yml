@@ -1,12 +1,12 @@
 version: 2.1
 
 orbs:
-  docker: banzaicloud/docker@0.0.5
+  docker: banzaicloud/docker@0.0.7
 
 jobs:
   build:
     docker:
-      - image: circleci/golang:1.13
+      - image: circleci/golang:1.16
         environment:
           GOFLAGS: -mod=readonly
     steps:

@@ -26,8 +26,8 @@ endif
 DOCKER_TAG ?= ${VERSION}
 
 # Dependency versions
-GOLANGCI_VERSION = 1.43.0
-GOLANG_VERSION = 1.17
+GOLANGCI_VERSION = 1.45.0
+GOLANG_VERSION = 1.18
 LICENSEI_VERSION = 0.3.1
 
 # Add the ability to override some variables
@@ -103,12 +103,14 @@ bin/golangci-lint: bin/golangci-lint-${GOLANGCI_VERSION}
 	@ln -sf golangci-lint-${GOLANGCI_VERSION} bin/golangci-lint
 bin/golangci-lint-${GOLANGCI_VERSION}:
 	@mkdir -p bin
-	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | bash -s -- -b ./bin/ v${GOLANGCI_VERSION}
+	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/v${GOLANGCI_VERSION}/install.sh | bash -s -- -b ./bin/ v${GOLANGCI_VERSION}
 	@mv bin/golangci-lint $@
 
 .PHONY: lint
 lint: bin/golangci-lint ## Run linter
-	bin/golangci-lint run
+# "unused" linter is a memory hog, but running it separately keeps it contained (probably because of caching)
+	bin/golangci-lint run --disable=unused -c .golangci.yml --timeout 2m
+	bin/golangci-lint run -c .golangci.yml --timeout 2m
 
 bin/licensei: bin/licensei-${LICENSEI_VERSION}
 	@ln -sf licensei-${LICENSEI_VERSION} bin/licensei
