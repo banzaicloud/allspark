@@ -16,7 +16,7 @@
 package log
 
 import (
-	"github.com/goph/logur"
+	"logur.dev/logur"
 )
 
 type Logger interface {
