@@ -18,7 +18,7 @@ Available options:
 
 - PI_COUNT - how many goroutines to use
 
-#### Echo
+#### ECHO
 
 Simply echos back a set string
 
@@ -26,9 +26,76 @@ Available options:
 
 - EHCO_STR - string to echo back
 
+#### AIRPORTS
+
+Echoes back a single string line from an embedded CSV that contains airport related metadata.
+
+`AIRPORTS` returns a more production like data with larger message sizes compared to `ECHO`. 
+
+Example lines:
+
+| id   | ident | type          | name                                        | latitude_deg   | longitude_deg      | elevation_ft | continent | iso_country | iso_region | municipality | scheduled_service | gps_code | iata_code | local_code | home_link                   | wikipedia_link                                                            | keywords                                                                        |
+|------|-------|---------------|---------------------------------------------|----------------|--------------------|--------------|-----------|-------------|------------|--------------|-------------------|----------|-----------|------------|-----------------------------|---------------------------------------------------------------------------|---------------------------------------------------------------------------------|
+| 6523 | 00A   | heliport      | Total Rf Heliport                           | 40.07080078125 | -74.93360137939453 | 11           | NA        | US          | US-PA      | Bensalem     | no                | 00A      |           | 00A        |                             |                                                                           |                                                                                 |
+| 4296 | LHBP  | large_airport | Budapest Liszt Ferenc International Airport | 47.42976       | 19.261093          | 495          | EU        | HU          | HU-PE      | Budapest     | yes               | LHBP     | BUD       |            | http://www.bud.hu/english   | https://en.wikipedia.org/wiki/Budapest_Ferenc_Liszt_International_Airport | Ferihegyi nemzetk√∂zi rep√ºl≈ët√©r, Budapest Liszt Ferenc international Airport |
+| 3622 | KJFK  | large_airport | John F Kennedy International Airport        | 40.639801      | -73.7789           | 13           | NA        | US          | US-NY      | New York     | yes               | KJFK     | JFK       | JFK        | https://www.jfkairport.com/ | https://en.wikipedia.org/wiki/John_F._Kennedy_International_Airport       | Manhattan, New York City, NYC, Idlewild                                         |
+
+
 ### Subsequent requests
 
 Subsequent request URLs can be set using the `REQUESTS` environment variable. Multiple URLs can be set and must be separated by `space`. A `count` must also be set for each URL using the following syntax: `URL#count`.
+
+### Apache Kafka
+
+Allspark can be used as an Apache Kafka consumer or producer.
+A single instance can work as both at the same time.
+
+For producing messages to the kafka cluster, the following workloads are supported:
+- `ECHO`
+- `AIRPORTS`
+
+Available options:
+- `KAFKA_BOOTSTRAP_SERVER`
+
+  The kafka bootstrap server where the cluster can be reached.
+
+  Required for both consumers and producers.
+
+  e.g.
+  ```
+    name: KAFKA_BOOTSTRAP_SERVER
+    value: "localhost:9092"
+  ```
+- `KAFKA_CONSUMER`
+
+  Starts a kafka consumer for the topic passed in as value.
+
+  e.g.
+  ```
+    name: KAFKA_CONSUMER
+    value: "example-topic"
+  ```
+- `KAFKA_CONSUMER_GROUP`
+
+  Sets the consumer group id for the kafka consumer.
+
+  If not set it gets defaulted to `allspark-consumer-group`.
+
+  e.g.
+  ```
+    name: KAFKA_CONSUMER_GROUP
+    value: "example-group"
+  ```
+- `KAFKA_PRODUCER`
+
+  Starts a kafka producer for the topic passed in as value.
+
+  e.g.
+  ```
+    name: KAFKA_CONSUMER
+    value: "example-topic"
+  ```
+
 
 ### Example deployment
 
@@ -127,3 +194,4 @@ spec:
   selector:
     app: analytics
 ```
+

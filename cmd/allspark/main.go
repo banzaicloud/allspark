@@ -15,12 +15,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
 
 	"emperror.dev/emperror"
 	"emperror.dev/errors"
+	"github.com/banzaicloud/allspark/internal/kafka"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v2"
@@ -112,7 +114,42 @@ func main() {
 			count = 50000
 		}
 		wl = workload.NewPIWorkload(uint(count), logger)
+	case "AIRPORTS":
+		wl = workload.NewAirportWorkload(logger)
 	}
+
+	kafkaBootstrapServer := viper.GetString("kafka_bootstrap_server")
+
+	// Kafka Consumer
+	var kafkaConsumerConfig *kafka.Consumer
+	kafkaConsumerTopic := viper.GetString("kafka_consumer")
+	kafkaConsumerGroup := viper.GetString("kafka_consumer_group")
+
+	if kafkaBootstrapServer != "" && kafkaConsumerTopic != "" {
+		kafkaConsumerConfig = kafka.NewConsumer(kafkaBootstrapServer, kafkaConsumerTopic, kafkaConsumerGroup, logger)
+		logger.WithFields(log.Fields{
+			"bootstrapServer": kafkaBootstrapServer,
+			"consumerTopic":   kafkaConsumerTopic,
+			"consumerGroup":   kafkaConsumerGroup,
+		}).Info("Kafka consumer initialized")
+	}
+
+	// Kafka Producer
+	var kafkaProducerConfig *kafka.Producer
+	kafkaProducerTopic := viper.GetString("kafka_producer")
+
+	if kafkaBootstrapServer != "" && kafkaProducerTopic != "" {
+		kafkaProducerConfig, err = kafka.NewProducer(kafkaBootstrapServer, kafkaProducerTopic, wl, logger)
+		if err != nil {
+			panic(err)
+		}
+		logger.WithFields(log.Fields{
+			"bootstrapServer": kafkaBootstrapServer,
+			"producerTopic":   kafkaProducerTopic,
+			"workload":        wl.GetName(),
+		}).Info("Kafka producer initialized")
+	}
+
 	var wg sync.WaitGroup
 
 	// HTTP server
@@ -180,6 +217,24 @@ func main() {
 		srv.SetSQLClient(sqlClient)
 		srv.Run()
 	}()
+
+	if kafkaProducerConfig != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			kafkaProducerConfig.Produce(context.Background())
+		}()
+	}
+
+	if kafkaConsumerConfig != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			kafkaConsumerConfig.Consume(context.Background())
+		}()
+	}
 
 	wg.Wait()
 }

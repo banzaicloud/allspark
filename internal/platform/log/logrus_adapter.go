@@ -24,6 +24,8 @@ type logrusAdapter struct {
 	*logrus.Entry
 }
 
+var _ Logger = &logrusAdapter{}
+
 // WithField adds a single field to the Entry
 func (a *logrusAdapter) WithField(key string, value interface{}) Logger {
 	return &logrusAdapter{a.Entry.WithField(key, value)}
@@ -33,6 +35,11 @@ func (a *logrusAdapter) WithField(key string, value interface{}) Logger {
 // the additional supplied fields.
 func (a *logrusAdapter) WithFields(fields Fields) Logger {
 	return &logrusAdapter{a.Entry.WithFields(logrus.Fields(fields))}
+}
+
+// Printf is a wrapper around logrus.Infof, and is required for the kafka consumer/producer logging
+func (a *logrusAdapter) Printf(s string, i ...interface{}) {
+	a.Infof(s, i...)
 }
 
 func NewLogrusLogger(config Config) Logger {

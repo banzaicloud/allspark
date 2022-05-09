@@ -21,7 +21,6 @@ import (
 
 	"emperror.dev/emperror"
 	"emperror.dev/errors"
-
 	"github.com/banzaicloud/allspark/internal/platform/log"
 	"github.com/banzaicloud/allspark/internal/request"
 	"github.com/banzaicloud/allspark/internal/sql"
