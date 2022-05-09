@@ -78,7 +78,7 @@ check: test-all lint ## Run tests and linters
 
 bin/go-junit-report:
 	@mkdir -p bin
-	GOBIN=${PWD}/bin/ go get -u github.com/jstemmer/go-junit-report
+	GOBIN=${PWD}/bin/ go install github.com/jstemmer/go-junit-report
 
 TEST_PKGS ?= ./...
 TEST_REPORT_NAME ?= results.xml
