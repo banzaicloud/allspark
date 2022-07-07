@@ -21,6 +21,8 @@ import (
 
 	"emperror.dev/emperror"
 	"emperror.dev/errors"
+	"github.com/banzaicloud/allspark/internal/kafka"
+	"github.com/banzaicloud/allspark/internal/kafka/server"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v2"
@@ -113,6 +115,7 @@ func main() {
 		}
 		wl = workload.NewPIWorkload(uint(count), logger)
 	}
+
 	var wg sync.WaitGroup
 
 	// HTTP server
@@ -177,6 +180,29 @@ func main() {
 		}
 
 		srv.SetRequests(tcpRequests)
+		srv.SetSQLClient(sqlClient)
+		srv.Run()
+	}()
+
+	// Kafka server
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		consumer := kafka.NewConsumer(configuration.KafkaServer.BootstrapServer, configuration.KafkaServer.Topic, configuration.KafkaServer.ConsumerGroup, logger)
+		srv := server.New(consumer, logger, errorHandler)
+		if wl != nil {
+			srv.SetWorkload(wl)
+		}
+
+		kafkaRequests, err := request.CreateRequestsFromStringSlice(viper.GetStringSlice("kafkaRequests"), logger.WithField("server", "kafka"))
+		if err != nil {
+			panic(err)
+		}
+		if len(kafkaRequests) == 0 {
+			kafkaRequests = requests
+		}
+
+		srv.SetRequests(kafkaRequests)
 		srv.SetSQLClient(sqlClient)
 		srv.Run()
 	}()

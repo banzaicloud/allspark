@@ -12,42 +12,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tcpserver
+package server
 
 import (
-	"net"
+	"context"
 	"net/http"
 	"sync"
 
 	"emperror.dev/emperror"
 	"emperror.dev/errors"
+	"github.com/banzaicloud/allspark/internal/kafka"
 	"github.com/banzaicloud/allspark/internal/platform/log"
 	"github.com/banzaicloud/allspark/internal/request"
 	"github.com/banzaicloud/allspark/internal/sql"
 	"github.com/banzaicloud/allspark/internal/workload"
+	segmentiokafka "github.com/segmentio/kafka-go"
 )
 
 type Server struct {
+	// the kafka Server acts as a consumer to handle incoming messages
+	consumer *kafka.Consumer
+
 	requests request.Requests
 	workload workload.Workload
 
-	sqlCient *sql.Client
-
-	listenAddress string
+	sqlClient *sql.Client
 
 	errorHandler emperror.Handler
 	logger       log.Logger
 }
 
-func New(config Config, logger log.Logger, errorHandler emperror.Handler) *Server {
-	logger = logger.WithField("server", "tcp")
+func New(consumer *kafka.Consumer, logger log.Logger, errorHandler emperror.Handler) *Server {
+	logger = logger.WithField("server", "kafka")
 	return &Server{
-		requests: make(request.Requests, 0),
-
-		listenAddress: config.ListenAddress,
-
-		errorHandler: errorHandler,
+		consumer:     consumer,
+		requests:     make(request.Requests, 0),
 		logger:       logger,
+		errorHandler: errorHandler,
 	}
 }
 
@@ -61,52 +62,41 @@ func (s *Server) SetRequests(requests request.Requests) {
 }
 
 func (s *Server) SetSQLClient(client *sql.Client) {
-	s.sqlCient = client
+	s.sqlClient = client
 }
 
 func (s *Server) Run() {
-	lis, err := net.Listen("tcp", s.listenAddress)
-	if err != nil {
-		s.errorHandler.Handle(errors.WrapIf(err, "could not listen"))
-		return
-	}
-	s.logger.WithField("address", s.listenAddress).Info("starting TCP server")
-
-	for {
-		c, err := lis.Accept()
+	defer func() {
+		err := s.consumer.Close()
 		if err != nil {
-			s.errorHandler.Handle(errors.WrapIf(err, "could not accept connection"))
+			s.logger.Error(errors.WrapIf(err, "could not close kafka server"))
 			return
 		}
-		go s.Incoming(c)
+	}()
+	for {
+		message, err := s.consumer.Consume(context.Background())
+		if err != nil {
+			s.errorHandler.Handle(errors.WrapIf(err, "could not consume"))
+			return
+		}
+		go s.Incoming(message)
 	}
 }
 
-func (s *Server) Incoming(c net.Conn) {
-	s.logger.Info("incoming TCP request")
-	defer func() {
-		c.Close()
-	}()
+func (s *Server) Incoming(_ *segmentiokafka.Message) {
+	s.logger.Info("incoming kafka consumer message")
 
 	go s.doRequests(nil)
 
-	if s.sqlCient != nil {
+	if s.sqlClient != nil {
 		go func() {
-			query, err := s.sqlCient.RunQuery(s.logger)
+			query, err := s.sqlClient.RunQuery(s.logger)
 			if err != nil {
 				s.logger.WithFields(log.Fields{
 					"query": query,
 				}).Error(err)
 			}
 		}()
-	}
-
-	tmp := make([]byte, 4096)
-	for {
-		_, err := c.Read(tmp)
-		if err != nil {
-			break
-		}
 	}
 
 	if s.workload == nil {

@@ -37,6 +37,7 @@ type Logger interface {
 	Errorf(format string, args ...interface{})
 	WithFields(fields Fields) Logger
 	WithField(key string, value interface{}) Logger
+	Printf(s string, args ...interface{})
 }
 
 // Fields is an alias to log.Fields for easier usage.

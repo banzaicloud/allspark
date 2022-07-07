@@ -24,11 +24,60 @@ Simply echos back a set string
 
 Available options:
 
-- EHCO_STR - string to echo back
+- ECHO_STR - string to echo back
+
 
 ### Subsequent requests
 
 Subsequent request URLs can be set using the `REQUESTS` environment variable. Multiple URLs can be set and must be separated by `space`. A `count` must also be set for each URL using the following syntax: `URL#count`.
+
+### Apache Kafka
+
+Allspark can be used as an Apache Kafka consumer or producer.
+A single instance can work as both at the same time.
+
+#### KafkaServer
+The Kafka server is a consumer that triggers `REQUESTS` when a message is consumed from the topic specified with the below option.
+Available options:
+- `KAFKASERVER_BOOTSTRAP_SERVER`
+
+  The kafka bootstrap server where the cluster can be reached.
+  Required.
+
+  e.g.
+  ```yaml
+    name: KAFKASERVER_BOOTSTRAP_SERVER
+    value: "kafka-all-broker.kafka.svc.cluster.local:29092"
+  ```
+- `KAFKASERVER_TOPIC`
+
+  Starts a kafka consumer for the topic passed in as value.
+
+  e.g.
+  ```yaml
+    name: KAFKASERVER_CONSUMER
+    value: "example-topic"
+  ```
+- `KAFKASERVER_CONSUMER_GROUP`
+
+  Sets the consumer group id for the kafka consumer.
+
+  If not set it gets defaulted to `allspark-consumer-group`.
+
+  e.g.
+  ```yaml
+    name: KAFKASERVER_CONSUMER_GROUP
+    value: "example-group"
+  ```
+  
+#### Requests
+You can use the `REQUESTS` variable to set additional consumers and producers
+
+e.g.
+```yaml
+  name: REQUESTS
+  value: kafka-consume://kafka-all-broker.kafka:29092/example-topic?consumerGroup=allspark-consumer-group kafka-produce://kafka-all-broker.kafka:29092/example-topic?message=example-message#1
+```
 
 ### Example deployment
 
@@ -127,3 +176,4 @@ spec:
   selector:
     app: analytics
 ```
+
