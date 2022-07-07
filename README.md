@@ -18,19 +18,17 @@ Available options:
 
 - PI_COUNT - how many goroutines to use
 
-#### ECHO
+#### Echo
 
 Simply echos back a set string
 
 Available options:
 
-- EHCO_STR - string to echo back
+- ECHO_STR - string to echo back
 
-#### AIRPORTS
+#### Kafka
 
 Echoes back a single string line from an embedded CSV that contains airport related metadata.
-
-`AIRPORTS` returns a more production like data with larger message sizes compared to `ECHO`. 
 
 Example lines:
 
@@ -50,52 +48,48 @@ Subsequent request URLs can be set using the `REQUESTS` environment variable. Mu
 Allspark can be used as an Apache Kafka consumer or producer.
 A single instance can work as both at the same time.
 
-For producing messages to the kafka cluster, the following workloads are supported:
-- `ECHO`
-- `AIRPORTS`
-
+#### KafkaServer
+The Kafka server is a consumer that triggers `REQUESTS` when a message is consumed from the topic specified with the below option.
 Available options:
-- `KAFKA_BOOTSTRAP_SERVER`
+- `KAFKASERVER_BOOTSTRAP_SERVER`
 
   The kafka bootstrap server where the cluster can be reached.
-
-  Required for both consumers and producers.
+  Required.
 
   e.g.
+  ```yaml
+    name: KAFKASERVER_BOOTSTRAP_SERVER
+    value: "kafka-all-broker.kafka.svc.cluster.local:29092"
   ```
-    name: KAFKA_BOOTSTRAP_SERVER
-    value: "localhost:9092"
-  ```
-- `KAFKA_CONSUMER`
+- `KAFKASERVER_TOPIC`
 
   Starts a kafka consumer for the topic passed in as value.
 
   e.g.
-  ```
-    name: KAFKA_CONSUMER
+  ```yaml
+    name: KAFKASERVER_CONSUMER
     value: "example-topic"
   ```
-- `KAFKA_CONSUMER_GROUP`
+- `KAFKASERVER_CONSUMER_GROUP`
 
   Sets the consumer group id for the kafka consumer.
 
   If not set it gets defaulted to `allspark-consumer-group`.
 
   e.g.
-  ```
-    name: KAFKA_CONSUMER_GROUP
+  ```yaml
+    name: KAFKASERVER_CONSUMER_GROUP
     value: "example-group"
   ```
-- `KAFKA_PRODUCER`
+  
+#### Requests
+You can use the `REQUESTS` variable to set additional consumers and producers
 
-  Starts a kafka producer for the topic passed in as value.
-
-  e.g.
-  ```
-    name: KAFKA_CONSUMER
-    value: "example-topic"
-  ```
-
+e.g.
+```yaml
+  name: REQUESTS
+  value: kafka-consume://kafka-all-broker.kafka:29092/example-topic?consumerGroup=allspark-consumer-group kafka-produce://kafka-all-broker.kafka:29092/example-topic?message=example-message#1
+```
 
 ### Example deployment
 

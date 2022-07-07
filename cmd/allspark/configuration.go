@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"emperror.dev/errors"
+	"github.com/banzaicloud/allspark/internal/kafka"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
@@ -57,6 +58,9 @@ type Config struct {
 
 	// TCP server configuration
 	TCPServer tcpserver.Config `mapstructure:"tcpServer"`
+
+	// Kafka server consumer configurations
+	KafkaServer kafka.Consumer `mapstructure:"kafkaServer"`
 }
 
 // Validate validates the configuration
@@ -90,6 +94,12 @@ func (c Config) Validate() (Config, error) {
 		return c, errors.WrapIf(err, "could not validate TCP server config")
 	}
 	c.TCPServer = tcpServerConfig
+
+	kafkaServerConfig, err := c.KafkaServer.Validate()
+	if err != nil {
+		return c, errors.WrapIf(err, "could not validate kafka server config")
+	}
+	c.KafkaServer = *kafkaServerConfig
 
 	return c, nil
 }

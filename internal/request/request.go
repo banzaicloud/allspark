@@ -23,6 +23,7 @@ import (
 
 	"emperror.dev/emperror"
 	"emperror.dev/errors"
+	"github.com/banzaicloud/allspark/internal/kafka"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/banzaicloud/allspark/internal/platform/log"
@@ -124,6 +125,39 @@ func (r *Requests) AddRequest(request HTTPRequest, logger log.Logger) error {
 			Host:        u.Hostname(),
 			Port:        port,
 			PayloadSize: request.Count() * 1024 * 1024,
+		}
+	case "kafka-consume":
+		pieces := strings.Split(u.RawQuery, "=")
+		if len(pieces) != 2 {
+			return errors.New("invalid kafka consume url; provide only the consumer group after the '?'")
+		}
+
+		bootstrapServer := u.Host
+		topic := strings.Trim(u.Path, "/")
+		consumerGroup := pieces[1]
+
+		consumer := kafka.NewConsumer(bootstrapServer, topic, consumerGroup, logger)
+
+		req = KafkaConsumeRequest{
+			consumer: consumer,
+			count:    request.Count(),
+		}
+	case "kafka-produce":
+		pieces := strings.Split(u.RawQuery, "=")
+		if len(pieces) != 2 {
+			return errors.New("invalid kafka produce url; provide only the message after the '?'")
+		}
+
+		bootstrapServer := u.Host
+		topic := strings.Trim(u.Path, "/")
+		message := pieces[1]
+
+		producer := kafka.NewProducer(bootstrapServer, topic, logger)
+
+		req = KafkaProduceRequest{
+			producer: producer,
+			Message:  message,
+			count:    request.Count(),
 		}
 	}
 

@@ -26,18 +26,18 @@ import (
 	"github.com/banzaicloud/allspark/internal/platform/log"
 )
 
-var _ Workload = &AirportWorkload{}
+var _ Workload = &KafkaWorkload{}
 
-const AirportWorkloadName = "Airport"
+const KafkaWorkloadName = "Kafka"
 
-type AirportWorkload struct {
+type KafkaWorkload struct {
 	name     string
 	airports [][]string
 
 	logger log.Logger
 }
 
-func NewAirportWorkload(logger log.Logger) Workload {
+func NewKafkaWorkload(logger log.Logger) Workload {
 	rand.Seed(time.Now().Unix())
 
 	csvReader := csv.NewReader(bytes.NewReader(assets.AirportCodes))
@@ -46,21 +46,21 @@ func NewAirportWorkload(logger log.Logger) Workload {
 		panic(errors.WrapIf(err, "Unable to parse Airport asset CSV"))
 	}
 
-	return &AirportWorkload{
-		name:     AirportWorkloadName,
+	return &KafkaWorkload{
+		name:     KafkaWorkloadName,
 		airports: records,
 
 		logger: logger,
 	}
 }
 
-func (w *AirportWorkload) GetName() string {
+func (w *KafkaWorkload) GetName() string {
 	return w.name
 }
 
-func (w *AirportWorkload) Execute() (string, string, error) {
+func (w *KafkaWorkload) Execute() (string, string, error) {
 	randomAirportInfo := w.airports[rand.Intn(len(w.airports))]
-	result := strings.Join(randomAirportInfo, "")
+	result := strings.Join(randomAirportInfo, ",")
 
 	return result, "text/plain", nil
 }
