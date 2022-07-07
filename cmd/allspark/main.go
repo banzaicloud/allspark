@@ -114,8 +114,6 @@ func main() {
 			count = 50000
 		}
 		wl = workload.NewPIWorkload(uint(count), logger)
-	case "Kafka":
-		wl = workload.NewKafkaWorkload(logger)
 	}
 
 	var wg sync.WaitGroup

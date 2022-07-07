@@ -26,18 +26,6 @@ Available options:
 
 - ECHO_STR - string to echo back
 
-#### Kafka
-
-Echoes back a single string line from an embedded CSV that contains airport related metadata.
-
-Example lines:
-
-| id   | ident | type          | name                                        | latitude_deg   | longitude_deg      | elevation_ft | continent | iso_country | iso_region | municipality | scheduled_service | gps_code | iata_code | local_code | home_link                   | wikipedia_link                                                            | keywords                                                                        |
-|------|-------|---------------|---------------------------------------------|----------------|--------------------|--------------|-----------|-------------|------------|--------------|-------------------|----------|-----------|------------|-----------------------------|---------------------------------------------------------------------------|---------------------------------------------------------------------------------|
-| 6523 | 00A   | heliport      | Total Rf Heliport                           | 40.07080078125 | -74.93360137939453 | 11           | NA        | US          | US-PA      | Bensalem     | no                | 00A      |           | 00A        |                             |                                                                           |                                                                                 |
-| 4296 | LHBP  | large_airport | Budapest Liszt Ferenc International Airport | 47.42976       | 19.261093          | 495          | EU        | HU          | HU-PE      | Budapest     | yes               | LHBP     | BUD       |            | http://www.bud.hu/english   | https://en.wikipedia.org/wiki/Budapest_Ferenc_Liszt_International_Airport | Ferihegyi nemzetk√∂zi rep√ºl≈ët√©r, Budapest Liszt Ferenc international Airport |
-| 3622 | KJFK  | large_airport | John F Kennedy International Airport        | 40.639801      | -73.7789           | 13           | NA        | US          | US-NY      | New York     | yes               | KJFK     | JFK       | JFK        | https://www.jfkairport.com/ | https://en.wikipedia.org/wiki/John_F._Kennedy_International_Airport       | Manhattan, New York City, NYC, Idlewild                                         |
-
 
 ### Subsequent requests
 
