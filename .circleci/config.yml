@@ -3,72 +3,11 @@ version: 2.1
 orbs:
   docker: banzaicloud/docker@0.0.7
 
-jobs:
-  build:
-    docker:
-      - image: cimg/go:1.18
-        environment:
-          GOFLAGS: -mod=readonly
-    steps:
-      - checkout
-
-      - restore_cache:
-          name: Restore build dependencies
-          keys:
-            - build-deps-v1-{{ .Branch }}-{{ checksum "Makefile" }}
-
-      - restore_cache:
-          name: Restore Go module cache
-          keys:
-            - gomod-v1-{{ .Branch }}-{{ checksum "go.sum" }}
-            - gomod-v1-{{ .Branch }}
-            - gomod-v1-master
-            - gomod-v1
-
-      - run:
-          name: Download Go module cache
-          command: go mod download
-
-      - save_cache:
-          name: Save Go module cache
-          key: gomod-v1-{{ .Branch }}-{{ checksum "go.sum" }}
-          paths:
-            - /home/circleci/go/pkg/mod
-
-      - restore_cache:
-          name: Restore license cache
-          keys:
-            - licensei-v1-{{ .Branch }}-{{ checksum "go.sum" }}
-
-      - run:
-          name: Download license information for dependencies
-          command: make license-cache
-
-      - save_cache:
-          name: Save license cache
-          key: licensei-v1-{{ .Branch }}-{{ checksum "go.sum" }}
-          paths:
-            - .licensei.cache
-
-      - run:
-          name: Run checks
-          command: make check
-
-      - save_cache:
-          name: Save build dependencies
-          key: build-deps-v1-{{ .Branch }}-{{ checksum "Makefile" }}
-          paths:
-            - bin/
-
-      - store_test_results:
-          path: build/test_results/
 
 workflows:
   version: 2
   ci:
     jobs:
-      - build
-
       - docker/build:
           name: Docker build
           executor: docker/machine-dlc

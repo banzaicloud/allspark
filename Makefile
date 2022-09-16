@@ -28,7 +28,7 @@ DOCKER_TAG ?= ${VERSION}
 # Dependency versions
 GOLANGCI_VERSION = 1.45.0
 GOLANG_VERSION = 1.18
-LICENSEI_VERSION = 0.3.1
+LICENSEI_VERSION = 0.6.1
 
 # Add the ability to override some variables
 # Use with care
@@ -122,7 +122,7 @@ bin/licensei-${LICENSEI_VERSION}:
 .PHONY: license-check
 license-check: bin/licensei ## Run license check
 	bin/licensei check
-	./scripts/check-header.sh
+	bin/licensei header
 
 .PHONY: license-cache
 license-cache: bin/licensei ## Generate license cache
