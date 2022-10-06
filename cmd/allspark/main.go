@@ -184,28 +184,30 @@ func main() {
 		srv.Run()
 	}()
 
-	// Kafka server
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		consumer := kafka.NewConsumer(configuration.KafkaServer.BootstrapServer, configuration.KafkaServer.Topic, configuration.KafkaServer.ConsumerGroup, logger)
-		srv := server.New(consumer, logger, errorHandler)
-		if wl != nil {
-			srv.SetWorkload(wl)
-		}
+	if configuration.KafkaServer.BootstrapServer != "" {
+		// Kafka server
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			consumer := kafka.NewConsumer(configuration.KafkaServer.BootstrapServer, configuration.KafkaServer.Topic, configuration.KafkaServer.ConsumerGroup, logger)
+			srv := server.New(consumer, logger, errorHandler)
+			if wl != nil {
+				srv.SetWorkload(wl)
+			}
 
-		kafkaRequests, err := request.CreateRequestsFromStringSlice(viper.GetStringSlice("kafkaRequests"), logger.WithField("server", "kafka"))
-		if err != nil {
-			panic(err)
-		}
-		if len(kafkaRequests) == 0 {
-			kafkaRequests = requests
-		}
+			kafkaRequests, err := request.CreateRequestsFromStringSlice(viper.GetStringSlice("kafkaRequests"), logger.WithField("server", "kafka"))
+			if err != nil {
+				panic(err)
+			}
+			if len(kafkaRequests) == 0 {
+				kafkaRequests = requests
+			}
 
-		srv.SetRequests(kafkaRequests)
-		srv.SetSQLClient(sqlClient)
-		srv.Run()
-	}()
+			srv.SetRequests(kafkaRequests)
+			srv.SetSQLClient(sqlClient)
+			srv.Run()
+		}()
+	}
 
 	wg.Wait()
 }
