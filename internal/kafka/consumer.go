@@ -74,10 +74,6 @@ func (c *Consumer) Close() error {
 }
 
 func (c *Consumer) Validate() (*Consumer, error) {
-	if c.BootstrapServer == "" {
-		c.BootstrapServer = "kafka-all-broker.kafka:29092"
-	}
-
 	if c.ConsumerGroup == "" {
 		c.ConsumerGroup = "allspark-consumer-group"
 	}

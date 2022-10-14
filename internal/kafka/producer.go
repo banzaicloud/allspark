@@ -18,10 +18,6 @@ type Producer struct {
 }
 
 func NewProducer(bootStrapServer string, topic string, logger log.Logger) *Producer {
-	if bootStrapServer == "" {
-		bootStrapServer = "kafka-all-broker.kafka:29092"
-	}
-
 	return &Producer{
 		bootstrapServer: bootStrapServer,
 		topic:           topic,
