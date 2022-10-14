@@ -28,10 +28,9 @@ func NewProducer(bootStrapServer string, topic string, logger log.Logger) *Produ
 func (p *Producer) Produce(ctx context.Context, message string) error {
 	if p.writer == nil {
 		p.writer = &kafka.Writer{
-			Topic:                  p.topic,
-			Addr:                   kafka.TCP(p.bootstrapServer),
-			Logger:                 p.logger,
-			AllowAutoTopicCreation: false,
+			Topic:  p.topic,
+			Addr:   kafka.TCP(p.bootstrapServer),
+			Logger: p.logger,
 		}
 	}
 
