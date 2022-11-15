@@ -3,11 +3,49 @@ package request
 import (
 	"context"
 	"net/http"
+	"net/url"
+	"strings"
+
+	"emperror.dev/errors"
+	"github.com/google/uuid"
 
 	"github.com/banzaicloud/allspark/internal/kafka"
 	"github.com/banzaicloud/allspark/internal/platform/log"
-	"github.com/google/uuid"
 )
+
+type kafkaConsumeFactory struct {
+	logger log.Logger
+}
+
+func NewKafkaConsumeFactory(logger log.Logger) Factory {
+	f := &kafkaConsumeFactory{
+		logger: logger,
+	}
+
+	return f
+}
+
+func (f *kafkaConsumeFactory) CreateRequest(u *url.URL) (Request, error) {
+	pieces := strings.Split(u.RawQuery, "=")
+	if len(pieces) != 2 {
+		return nil, errors.New("invalid kafka consume url; provide only the consumer group after the '?'")
+	}
+
+	bootstrapServer := u.Host
+	topic := strings.Trim(u.Path, "/")
+	consumerGroup := pieces[1]
+
+	consumer := kafka.NewConsumer(bootstrapServer, topic, consumerGroup, f.logger)
+
+	return KafkaConsumeRequest{
+		BootstrapServer: bootstrapServer,
+		Topic:           topic,
+		ConsumerGroup:   consumerGroup,
+
+		consumer: consumer,
+		count:    parseCountFromURL(u),
+	}, nil
+}
 
 type KafkaConsumeRequest struct {
 	BootstrapServer string `json:"host"`

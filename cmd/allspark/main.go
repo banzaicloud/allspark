@@ -21,14 +21,14 @@ import (
 
 	"emperror.dev/emperror"
 	"emperror.dev/errors"
-	"github.com/banzaicloud/allspark/internal/kafka"
-	"github.com/banzaicloud/allspark/internal/kafka/server"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/banzaicloud/allspark/internal/grpcserver"
 	"github.com/banzaicloud/allspark/internal/httpserver"
+	"github.com/banzaicloud/allspark/internal/kafka"
+	"github.com/banzaicloud/allspark/internal/kafka/server"
 	"github.com/banzaicloud/allspark/internal/platform/errorhandler"
 	"github.com/banzaicloud/allspark/internal/platform/healthcheck"
 	"github.com/banzaicloud/allspark/internal/platform/log"
@@ -98,7 +98,14 @@ func main() {
 		}).Info("SQL client initialized")
 	}
 
-	requests, err := request.CreateRequestsFromStringSlice(viper.GetStringSlice("requests"), logger.WithField("server", "any"))
+	request.RegisterFactory("http", request.NewHTTPFactory())
+	request.RegisterFactory("https", request.NewHTTPFactory())
+	request.RegisterFactory("grpc", request.NewGRPCFactory())
+	request.RegisterFactory("tcp", request.NewTCPFactory())
+	request.RegisterFactory("kafka-consume", request.NewKafkaConsumeFactory(logger))
+	request.RegisterFactory("kafka-produce", request.NewKafkaProduceFactory(logger))
+
+	requests, err := request.ParseRequests(viper.GetStringSlice("requests"), logger.WithField("server", "any"))
 	if err != nil {
 		panic(err)
 	}
@@ -127,7 +134,7 @@ func main() {
 			srv.SetWorkload(wl)
 		}
 
-		httpRequests, err := request.CreateRequestsFromStringSlice(viper.GetStringSlice("httpRequests"), logger.WithField("server", "http"))
+		httpRequests, err := request.ParseRequests(viper.GetStringSlice("httpRequests"), logger.WithField("server", "http"))
 		if err != nil {
 			panic(err)
 		}
@@ -149,7 +156,7 @@ func main() {
 			srv.SetWorkload(wl)
 		}
 
-		grpcRequests, err := request.CreateRequestsFromStringSlice(viper.GetStringSlice("grpcRequests"), logger.WithField("server", "grpc"))
+		grpcRequests, err := request.ParseRequests(viper.GetStringSlice("grpcRequests"), logger.WithField("server", "grcp"))
 		if err != nil {
 			panic(err)
 		}
@@ -171,7 +178,7 @@ func main() {
 			srv.SetWorkload(wl)
 		}
 
-		tcpRequests, err := request.CreateRequestsFromStringSlice(viper.GetStringSlice("tcpRequests"), logger.WithField("server", "tcp"))
+		tcpRequests, err := request.ParseRequests(viper.GetStringSlice("tcpRequests"), logger.WithField("server", "tcp"))
 		if err != nil {
 			panic(err)
 		}
@@ -195,7 +202,7 @@ func main() {
 				srv.SetWorkload(wl)
 			}
 
-			kafkaRequests, err := request.CreateRequestsFromStringSlice(viper.GetStringSlice("kafkaRequests"), logger.WithField("server", "kafka"))
+			kafkaRequests, err := request.ParseRequests(viper.GetStringSlice("kafkaRequests"), logger.WithField("server", "kafka"))
 			if err != nil {
 				panic(err)
 			}

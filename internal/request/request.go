@@ -19,11 +19,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 
-	"emperror.dev/emperror"
-	"emperror.dev/errors"
-	"github.com/banzaicloud/allspark/internal/kafka"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/banzaicloud/allspark/internal/platform/log"
@@ -53,122 +49,12 @@ type Request interface {
 
 type Requests []Request
 
-func CreateRequestsFromStringSlice(reqs []string, logger log.Logger) (Requests, error) {
-	var request Request
-
-	requests := make(Requests, 0)
-
-	for _, req := range reqs {
-		pieces := strings.Split(req, "#")
-		if len(pieces) == 0 {
-			continue
-		}
-
-		if len(pieces) == 1 {
-			request = HTTPRequest{
-				URL: pieces[0],
-			}
-		}
-
-		if len(pieces) == 2 {
-			count, err := strconv.ParseUint(pieces[1], 10, 64)
-			if err != nil {
-				continue
-			}
-			request = HTTPRequest{
-				URL:   pieces[0],
-				count: uint(count),
-			}
-		}
-
-		err := requests.AddRequest(request.(HTTPRequest), logger)
-		if err != nil {
-			return nil, errors.WrapIf(err, "could not add request")
-		}
+func parseCountFromURL(u *url.URL) uint {
+	if count, err := strconv.ParseUint(u.Fragment, 10, 64); err == nil {
+		return uint(count)
 	}
 
-	return requests, nil
-}
-
-func (r *Requests) AddRequest(request HTTPRequest, logger log.Logger) error {
-	u, err := url.Parse(request.URL)
-	if err == nil && (u.Scheme == "" || u.Host == "") {
-		return emperror.With(errors.New("invalid URL"), "url", request.URL)
-	}
-	if err != nil {
-		return err
-	}
-
-	var req Request
-
-	switch u.Scheme {
-	case "http", "https":
-		req = request
-	case "grpc":
-		p := strings.SplitN(u.Path, "/", 3)
-		if len(p) != 3 {
-			return errors.New("invalid grpc url; service and/or method is missing")
-		}
-
-		req = GRPCRequest{
-			Host:    u.Host,
-			Service: p[1],
-			Method:  p[2],
-			count:   request.Count(),
-		}
-	case "tcp":
-		port, err := strconv.Atoi(u.Port())
-		if err != nil {
-			return errors.WrapIf(err, "could not convert port to int")
-		}
-		req = TCPRequest{
-			Host:        u.Hostname(),
-			Port:        port,
-			PayloadSize: request.Count() * 1024 * 1024,
-		}
-	case "kafka-consume":
-		pieces := strings.Split(u.RawQuery, "=")
-		if len(pieces) != 2 {
-			return errors.New("invalid kafka consume url; provide only the consumer group after the '?'")
-		}
-
-		bootstrapServer := u.Host
-		topic := strings.Trim(u.Path, "/")
-		consumerGroup := pieces[1]
-
-		consumer := kafka.NewConsumer(bootstrapServer, topic, consumerGroup, logger)
-
-		req = KafkaConsumeRequest{
-			consumer: consumer,
-			count:    request.Count(),
-		}
-	case "kafka-produce":
-		pieces := strings.Split(u.RawQuery, "=")
-		if len(pieces) != 2 {
-			return errors.New("invalid kafka produce url; provide only the message after the '?'")
-		}
-
-		bootstrapServer := u.Host
-		topic := strings.Trim(u.Path, "/")
-		message := pieces[1]
-
-		producer := kafka.NewProducer(bootstrapServer, topic, logger)
-
-		req = KafkaProduceRequest{
-			producer: producer,
-			Message:  message,
-			count:    request.Count(),
-		}
-	}
-
-	logger.WithFields(log.Fields{
-		"url":   request.URL,
-		"count": request.Count(),
-	}).Info("request added")
-
-	*r = append(*r, req)
-
-	return nil
+	return 1
 }
 
 func propagateHeaders(incomingRequestHeaders http.Header, httpReq *http.Request) {

@@ -16,16 +16,53 @@ package request
 
 import (
 	"net/http"
+	"net/url"
 
 	"github.com/google/uuid"
 
 	"github.com/banzaicloud/allspark/internal/platform/log"
 )
 
+type httpFactory struct {
+	transport http.RoundTripper
+}
+
+type HTTPFactoryOption func(*httpFactory)
+
+func WithHTTPTransport(transport http.RoundTripper) HTTPFactoryOption {
+	return func(f *httpFactory) {
+		f.transport = transport
+	}
+}
+
+func NewHTTPFactory(opts ...HTTPFactoryOption) Factory {
+	f := &httpFactory{
+		transport: http.DefaultTransport,
+	}
+
+	for _, o := range opts {
+		o(f)
+	}
+
+	return f
+}
+
+func (f *httpFactory) CreateRequest(u *url.URL) (Request, error) {
+	r := HTTPRequest{
+		URL:       u,
+		transport: f.transport,
+		count:     parseCountFromURL(u),
+	}
+
+	return r, nil
+}
+
 type HTTPRequest struct {
-	URL string `json:"URL"`
+	URL *url.URL
 
 	count uint
+
+	transport http.RoundTripper
 }
 
 func (request HTTPRequest) Count() uint {
@@ -39,8 +76,10 @@ func (request HTTPRequest) Do(incomingRequestHeaders http.Header, logger log.Log
 		"correlationID": correlationID,
 	}).Info("outgoing request")
 
-	httpClient := &http.Client{}
-	httpReq, err := http.NewRequest("GET", request.URL, nil)
+	httpClient := &http.Client{
+		Transport: request.transport,
+	}
+	httpReq, err := http.NewRequest("GET", request.URL.String(), nil)
 	if err != nil {
 		logger.WithFields(log.Fields{
 			"url": request.URL,

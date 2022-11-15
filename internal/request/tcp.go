@@ -18,12 +18,36 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 
 	"emperror.dev/errors"
 
 	"github.com/banzaicloud/allspark/internal/platform/log"
 )
+
+type tcpFactory struct {
+}
+
+func NewTCPFactory() Factory {
+	f := &tcpFactory{}
+
+	return f
+}
+
+func (f *tcpFactory) CreateRequest(u *url.URL) (Request, error) {
+	port, err := strconv.Atoi(u.Port())
+	if err != nil {
+		return nil, errors.WrapIf(err, "could not convert port to int")
+	}
+
+	return TCPRequest{
+		Host:        u.Hostname(),
+		Port:        port,
+		PayloadSize: parseCountFromURL(u) * 1024 * 1024,
+	}, nil
+}
 
 type TCPRequest struct {
 	Host        string `json:"host"`

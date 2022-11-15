@@ -17,13 +17,39 @@ package request
 import (
 	"context"
 	"net/http"
+	"net/url"
+	"strings"
 
+	"emperror.dev/errors"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 
 	"github.com/banzaicloud/allspark/internal/pb"
 	"github.com/banzaicloud/allspark/internal/platform/log"
 )
+
+type grpcFactory struct {
+}
+
+func NewGRPCFactory() Factory {
+	f := &grpcFactory{}
+
+	return f
+}
+
+func (f *grpcFactory) CreateRequest(u *url.URL) (Request, error) {
+	p := strings.SplitN(u.Path, "/", 3)
+	if len(p) != 3 {
+		return nil, errors.New("invalid grpc url; service and/or method is missing")
+	}
+
+	return GRPCRequest{
+		Host:    u.Host,
+		Service: p[1],
+		Method:  p[2],
+		count:   parseCountFromURL(u),
+	}, nil
+}
 
 type GRPCRequest struct {
 	Host    string `json:"host"`
