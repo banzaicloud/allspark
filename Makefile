@@ -28,7 +28,7 @@ DOCKER_TAG ?= ${VERSION}
 # Dependency versions
 GOLANGCI_VERSION = 1.45.0
 GOLANG_VERSION = 1.18
-LICENSEI_VERSION = 0.6.1
+LICENSEI_VERSION = 0.7.0
 
 # Add the ability to override some variables
 # Use with care
@@ -64,14 +64,25 @@ build-debug: GOARGS += -gcflags "all=-N -l"
 build-debug: BINARY_NAME_SUFFIX += debug
 build-debug: build ## Build a binary with remote debugging capabilities
 
-.PHONY: docker
-docker: export GOOS = linux
-docker: BINARY_NAME_SUFFIX += docker
-docker: build-release ## Build a Docker image
-	docker build --build-arg BUILD_DIR=${BUILD_DIR} --build-arg BINARY_NAME=${GENERATED_BINARY_NAME} -t ${DOCKER_IMAGE}:${DOCKER_TAG} -f Dockerfile.local .
+.PHONY: docker-build
+docker-build: export GOOS = linux
+
+docker-build: BINARY_NAME_SUFFIX += docker
+docker-build: build-release ## Build a Docker image
+	docker build --build-arg BUILD_DIR=${BUILD_DIR} --build-arg BINARY_NAME=${GENERATED_BINARY_NAME} -t ${DOCKER_IMAGE}:${DOCKER_TAG} -f Dockerfile .
 ifeq (${DOCKER_LATEST}, 1)
 	docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
 endif
+
+.PHONY: docker-local
+docker-local: export GOOS = linux
+docker-local: BINARY_NAME_SUFFIX += docker
+docker-local: build-release ## Build a Docker image
+	docker build --build-arg BUILD_DIR=${BUILD_DIR} --build-arg BINARY_NAME=${GENERATED_BINARY_NAME} -t ${DOCKER_IMAGE}:${DOCKER_TAG} -f Dockerfile.local .
+
+.PHONY: docker-push
+docker-push:			## Push the docker image (to override image name please set IMG)
+	docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
 
 .PHONY: check
 check: test-all lint ## Run tests and linters
