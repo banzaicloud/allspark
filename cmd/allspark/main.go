@@ -15,15 +15,25 @@
 package main
 
 import (
+	"context"
+	"flag"
 	"fmt"
+	"io/ioutil"
+	"net"
+	"net/http"
 	"os"
+	"runtime/pprof"
 	"sync"
+	"time"
 
 	"emperror.dev/emperror"
 	"emperror.dev/errors"
+	"github.com/bombsimon/logrusr/v3"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"google.golang.org/grpc"
 	yaml "gopkg.in/yaml.v2"
+	"k8s.io/klog/v2"
 
 	"github.com/banzaicloud/allspark/internal/grpcserver"
 	"github.com/banzaicloud/allspark/internal/httpserver"
@@ -36,15 +46,30 @@ import (
 	"github.com/banzaicloud/allspark/internal/sql"
 	"github.com/banzaicloud/allspark/internal/tcpserver"
 	"github.com/banzaicloud/allspark/internal/workload"
+	"github.com/cisco-open/nasp/pkg/istio"
 )
 
 // nolint: gochecknoinits
 func init() {
 	pflag.Bool("version", false, "Show version information")
 	pflag.Bool("dump-config", false, "Dump configuration to the console")
+	klog.InitFlags(nil)
+	pflag.CommandLine.AddGoFlag(flag.CommandLine.Lookup("v"))
 }
 
 func main() {
+	go func() {
+		for i := 0; i < 10; i++ {
+			f, err := ioutil.TempFile(os.TempDir(), "cpuprof")
+			if err != nil {
+				panic(err)
+			}
+			pprof.StartCPUProfile(f)
+			time.Sleep(time.Second * 60)
+			pprof.StopCPUProfile()
+		}
+	}()
+
 	// Loads and validates configuration
 	configure()
 
@@ -79,14 +104,54 @@ func main() {
 		healthcheck.New(configuration.Healthcheck, logger, errorHandler)
 	}()
 
+	transport := http.DefaultTransport
+	dialContext := (&net.Dialer{}).DialContext
+	dialOptions := make([]grpc.DialOption, 0)
+
+	httpServerOptions := make([]httpserver.ServerOption, 0)
+	grpcServerOptions := make([]grpcserver.ServerOption, 0)
+	tcpServerOptions := make([]tcpserver.ServerOption, 0)
+
 	var err error
-	var sqlClient *sql.Client
+
+	lolo := klog.Background()
+	lolo = logrusr.New(logger.Logrus())
+
+	var iih istio.IstioIntegrationHandler
+	iih, err = istio.NewIstioIntegrationHandler(&istio.DefaultIstioIntegrationHandlerConfig, lolo)
+	if err != nil {
+		panic(err)
+	}
+
+	iih.Run(context.Background())
+
+	transport, err = iih.GetHTTPTransport(http.DefaultTransport.(*http.Transport).Clone())
+	if err != nil {
+		panic(err)
+	}
+
+	dialOptions, err = iih.GetGRPCDialOptions()
+	if err != nil {
+		panic(err)
+	}
+
+	tcpDialer, err := iih.GetTCPDialer()
+	if err != nil {
+		panic(err)
+	}
+	dialContext = tcpDialer.DialContext
+
+	httpServerOptions = append(httpServerOptions, httpserver.ServerWithListenerFunc(iih.ListenAndServe))
+	grpcServerOptions = append(grpcServerOptions, grpcserver.ServerWithListenerFunc(iih.ListenAndServe))
+	tcpServerOptions = append(tcpServerOptions, tcpserver.ServerWithListenerFunc(iih.GetTCPListener))
+
+	var sqlClient sql.Client
 	sqlQuery := viper.GetString("sql_query")
 	sqlDSN := viper.GetString("sql_dsn")
 	sqlQueryRepeatCount := viper.GetInt("sql_query_repeat_count")
 	sqlQueryRepeatCountMax := viper.GetInt("sql_query_repeat_count_max")
 	if sqlDSN != "" && sqlQuery != "" {
-		sqlClient, err = sql.NewClient(sqlDSN, sqlQuery, sqlQueryRepeatCount, sqlQueryRepeatCountMax)
+		sqlClient, err = sql.NewClient(sqlDSN, sqlQuery, sqlQueryRepeatCount, sqlQueryRepeatCountMax, sql.WithDialerFunc(dialContext))
 		if err != nil {
 			panic(err)
 		}
@@ -98,10 +163,12 @@ func main() {
 		}).Info("SQL client initialized")
 	}
 
-	request.RegisterFactory("http", request.NewHTTPFactory())
-	request.RegisterFactory("https", request.NewHTTPFactory())
-	request.RegisterFactory("grpc", request.NewGRPCFactory())
-	request.RegisterFactory("tcp", request.NewTCPFactory())
+	request.RegisterFactory("http", request.NewHTTPFactory(request.WithHTTPTransport(transport)))
+	request.RegisterFactory("https", request.NewHTTPFactory(request.WithHTTPTransport(transport)))
+	request.RegisterFactory("grpc", request.NewGRPCFactory(request.WithGRPCDialOptions(
+		dialOptions...,
+	)))
+	request.RegisterFactory("tcp", request.NewTCPFactory(request.WithTCPDialerFunc(dialContext)))
 	request.RegisterFactory("kafka-consume", request.NewKafkaConsumeFactory(logger))
 	request.RegisterFactory("kafka-produce", request.NewKafkaProduceFactory(logger))
 
@@ -129,7 +196,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		srv := httpserver.New(configuration.HTTPServer, logger, errorHandler)
+		srv := httpserver.New(configuration.HTTPServer, logger, errorHandler, httpServerOptions...)
 		if wl != nil {
 			srv.SetWorkload(wl)
 		}
@@ -151,7 +218,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		srv := grpcserver.New(configuration.GRPCServer, logger, errorHandler)
+		srv := grpcserver.New(configuration.GRPCServer, logger, errorHandler, grpcServerOptions...)
 		if wl != nil {
 			srv.SetWorkload(wl)
 		}
@@ -173,7 +240,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		srv := tcpserver.New(configuration.TCPServer, logger, errorHandler)
+		srv := tcpserver.New(configuration.TCPServer, logger, errorHandler, tcpServerOptions...)
 		if wl != nil {
 			srv.SetWorkload(wl)
 		}

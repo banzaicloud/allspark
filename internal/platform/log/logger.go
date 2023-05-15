@@ -16,6 +16,7 @@
 package log
 
 import (
+	"github.com/sirupsen/logrus"
 	"logur.dev/logur"
 )
 
@@ -38,6 +39,8 @@ type Logger interface {
 	WithFields(fields Fields) Logger
 	WithField(key string, value interface{}) Logger
 	Printf(s string, args ...interface{})
+
+	Logrus() *logrus.Entry
 }
 
 // Fields is an alias to log.Fields for easier usage.

@@ -16,7 +16,6 @@ package grpcserver
 
 import (
 	"context"
-	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -39,24 +38,46 @@ type Server struct {
 	requests request.Requests
 	workload workload.Workload
 
-	sqlCient *sql.Client
+	sqlCient sql.Client
 
 	listenAddress string
 
 	errorHandler emperror.Handler
 	logger       log.Logger
+
+	listenerFunc ListenerFunc
 }
 
-func New(config Config, logger log.Logger, errorHandler emperror.Handler) *Server {
+type ServerOption func(*Server)
+
+func ServerWithListenerFunc(listener ListenerFunc) ServerOption {
+	return func(srv *Server) {
+		srv.listenerFunc = listener
+	}
+}
+
+type ListenerFunc func(ctx context.Context, listenAddress string, handler http.Handler) error
+
+func New(config Config, logger log.Logger, errorHandler emperror.Handler, options ...ServerOption) *Server {
 	logger = logger.WithField("server", "grpc")
-	return &Server{
+	srv := &Server{
 		requests: make(request.Requests, 0),
 
 		listenAddress: config.ListenAddress,
 
 		errorHandler: errorHandler,
 		logger:       logger,
+
+		listenerFunc: func(ctx context.Context, listenAddress string, handler http.Handler) error {
+			return http.ListenAndServe(listenAddress, handler)
+		},
 	}
+
+	for _, option := range options {
+		option(srv)
+	}
+
+	return srv
 }
 
 func (s *Server) SetWorkload(workload workload.Workload) {
@@ -68,16 +89,11 @@ func (s *Server) SetRequests(requests request.Requests) {
 	s.requests = requests
 }
 
-func (s *Server) SetSQLClient(client *sql.Client) {
+func (s *Server) SetSQLClient(client sql.Client) {
 	s.sqlCient = client
 }
 
 func (s *Server) Run() {
-	lis, err := net.Listen("tcp", s.listenAddress)
-	if err != nil {
-		s.errorHandler.Handle(errors.WrapIf(err, "could not listen"))
-		return
-	}
 	s.logger.WithField("address", s.listenAddress).Info("starting GRPC server")
 
 	gs := grpc.NewServer(
@@ -97,7 +113,7 @@ func (s *Server) Run() {
 
 	// Register reflection service on gRPC server.
 	reflection.Register(gs)
-	if err := gs.Serve(lis); err != nil {
+	if err := s.listenerFunc(context.Background(), s.listenAddress, gs); err != nil {
 		s.errorHandler.Handle(errors.WrapIf(err, "could not serve"))
 	}
 }

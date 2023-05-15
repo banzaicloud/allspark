@@ -21,9 +21,10 @@ import (
 	"strings"
 
 	"emperror.dev/errors"
-	"github.com/banzaicloud/allspark/internal/kafka"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+
+	"github.com/banzaicloud/allspark/internal/kafka"
 
 	"github.com/banzaicloud/allspark/internal/grpcserver"
 	"github.com/banzaicloud/allspark/internal/httpserver"
@@ -61,10 +62,16 @@ type Config struct {
 
 	// Kafka server consumer configurations
 	KafkaServer kafka.Consumer `mapstructure:"kafkaServer"`
+
+	MetricsAddress string `mapstructure:"metricsAddr"`
 }
 
 // Validate validates the configuration
 func (c Config) Validate() (Config, error) {
+	if c.MetricsAddress == "" {
+		c.MetricsAddress = ":16090"
+	}
+
 	logConfig, err := c.Log.Validate()
 	if err != nil {
 		return c, errors.WrapIf(err, "could not validate log config")

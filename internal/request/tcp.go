@@ -15,23 +15,42 @@
 package request
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"emperror.dev/errors"
 
 	"github.com/banzaicloud/allspark/internal/platform/log"
 )
 
+type DialerFunc func(ctx context.Context, network string, address string) (net.Conn, error)
+
 type tcpFactory struct {
+	dialerFunc DialerFunc
 }
 
-func NewTCPFactory() Factory {
-	f := &tcpFactory{}
+type TCPFactoryOption func(*tcpFactory)
+
+func WithTCPDialerFunc(dialerFunc DialerFunc) TCPFactoryOption {
+	return func(f *tcpFactory) {
+		f.dialerFunc = dialerFunc
+	}
+}
+
+func NewTCPFactory(opts ...TCPFactoryOption) Factory {
+	f := &tcpFactory{
+		dialerFunc: (&net.Dialer{}).DialContext,
+	}
+
+	for _, o := range opts {
+		o(f)
+	}
 
 	return f
 }
@@ -42,25 +61,29 @@ func (f *tcpFactory) CreateRequest(u *url.URL) (Request, error) {
 		return nil, errors.WrapIf(err, "could not convert port to int")
 	}
 
-	return TCPRequest{
+	return tcpRequest{
 		Host:        u.Hostname(),
 		Port:        port,
 		PayloadSize: parseCountFromURL(u) * 1024 * 1024,
+
+		dialerFunc: f.dialerFunc,
 	}, nil
 }
 
-type TCPRequest struct {
+type tcpRequest struct {
 	Host        string `json:"host"`
 	Port        int    `json:"port"`
 	PayloadSize uint   `json:"payloadSize"`
+
+	dialerFunc DialerFunc
 }
 
-func (request TCPRequest) Count() uint {
+func (request tcpRequest) Count() uint {
 	return 1
 }
 
-func (request TCPRequest) Do(incomingRequestHeaders http.Header, logger log.Logger) {
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", request.Host, request.Port))
+func (request tcpRequest) Do(incomingRequestHeaders http.Header, logger log.Logger) {
+	conn, err := request.dialerFunc(context.Background(), "tcp", fmt.Sprintf("%s:%d", request.Host, request.Port))
 	if err != nil {
 		logger.Error(errors.WrapIf(err, "could not connect"))
 		return
@@ -69,12 +92,16 @@ func (request TCPRequest) Do(incomingRequestHeaders http.Header, logger log.Logg
 		conn.Close()
 	}()
 
-	s := strings.Repeat(".", 1024)
+	s := strings.Repeat(".", 16384)
 
 	logger.WithField("payloadSize", request.PayloadSize).Info("sending data")
 
+	conn.SetWriteDeadline(time.Now().Add(time.Second))
+
 	var sum int
+	i := 0
 	for {
+		i++
 		sent, err := conn.Write([]byte(s))
 		if err != nil {
 			logger.Error(errors.WrapIf(err, "could not send data"))
@@ -84,6 +111,14 @@ func (request TCPRequest) Do(incomingRequestHeaders http.Header, logger log.Logg
 		if uint(sum) >= request.PayloadSize {
 			break
 		}
+		// fmt.Printf("sending [%d] ...\n", i)
 	}
+
+	conn.SetReadDeadline(time.Now().Add(time.Second))
+	reply := make([]byte, 4096)
+	if _, err = conn.Read(reply); err != nil {
+		logger.Error(errors.WrapIf(err, "could not read data"))
+	}
+
 	logger.WithField("bytes", sum).Info("data sent")
 }

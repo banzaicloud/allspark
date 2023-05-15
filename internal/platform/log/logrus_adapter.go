@@ -42,6 +42,10 @@ func (a *logrusAdapter) Printf(s string, i ...interface{}) {
 	a.Infof(s, i...)
 }
 
+func (a *logrusAdapter) Logrus() *logrus.Entry {
+	return a.Entry
+}
+
 func NewLogrusLogger(config Config) Logger {
 	logger := logrus.New()
 
@@ -50,6 +54,7 @@ func NewLogrusLogger(config Config) Logger {
 		DisableColors:             config.NoColor,
 		EnvironmentOverrideColors: true,
 	})
+	// logger.SetLevel(logrus.TraceLevel)
 
 	switch config.Format {
 	case "logfmt":

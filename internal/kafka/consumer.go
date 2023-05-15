@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 
 	"emperror.dev/errors"
-	"github.com/banzaicloud/allspark/internal/platform/log"
 	kafka "github.com/segmentio/kafka-go"
+
+	"github.com/banzaicloud/allspark/internal/platform/log"
 )
 
 type Consumer struct {

@@ -2,7 +2,8 @@ ARG GO_VERSION=1.18.0
 
 FROM golang:${GO_VERSION}-alpine3.15 AS builder
 
-RUN apk add --update --no-cache ca-certificates~=20211220 make~=4.3 git~=2.34 curl~=7.80
+# hadolint ignore=DL3018
+RUN apk add --update --no-cache ca-certificates make git curl
 
 ARG PACKAGE=/build
 

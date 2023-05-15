@@ -15,15 +15,18 @@
 package sql
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"math/rand"
+	"net"
 	"net/url"
 	"time"
 
 	"emperror.dev/errors"
-	// mysql driver
-	_ "github.com/go-mysql-org/go-mysql/driver"
+	"github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/stdlib"
 
 	"github.com/banzaicloud/allspark/internal/platform/log"
@@ -34,7 +37,12 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-type Client struct {
+type Client interface {
+	RunQuery(log.Logger) (string, error)
+	GetDriver() string
+}
+
+type client struct {
 	driver string
 	dsn    string
 	query  string
@@ -43,20 +51,52 @@ type Client struct {
 	sqlQueryRepeatCountMax int
 
 	conn *sql.DB
+
+	dialerFunc DialerFunc
 }
 
-func NewClient(dsn, query string, sqlQueryRepeatCount, sqlQueryRepeatCountMax int) (*Client, error) {
+type DialerFunc func(ctx context.Context, network string, address string) (net.Conn, error)
+
+type SQLClientOption func(*client)
+
+func WithDialerFunc(dialerFunc DialerFunc) SQLClientOption {
+	return func(f *client) {
+		f.dialerFunc = dialerFunc
+	}
+}
+
+func NewClient(dsn, query string, sqlQueryRepeatCount, sqlQueryRepeatCountMax int, opts ...SQLClientOption) (*client, error) {
 	u, err := url.Parse(dsn)
 	if err != nil {
 		return nil, err
 	}
 
-	driver := u.Scheme
+	client := &client{
+		driver:                 u.Scheme,
+		query:                  query,
+		sqlQueryRepeatCount:    sqlQueryRepeatCount,
+		sqlQueryRepeatCountMax: sqlQueryRepeatCountMax,
+		dialerFunc:             (&net.Dialer{}).DialContext,
+	}
 
-	switch driver {
+	switch client.driver {
 	case "postgresql":
+		cc, err := pgx.ParseConfig(dsn)
+		if err != nil {
+			return nil, err
+		}
+		cc.DialFunc = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return client.dialerFunc(ctx, network, addr)
+		}
+		dsn = stdlib.RegisterConnConfig(cc)
+		fmt.Println(dsn)
 	case "mysql":
+		mysql.RegisterDialContext("custom-dialer", func(ctx context.Context, addr string) (net.Conn, error) {
+			return client.dialerFunc(ctx, "tcp", addr)
+		})
+
 		u.Scheme = ""
+		u.Host = fmt.Sprintf("custom-dialer(%s)", u.Host)
 		if l := u.String(); len(l) > 3 {
 			dsn = l[2:]
 		}
@@ -64,24 +104,23 @@ func NewClient(dsn, query string, sqlQueryRepeatCount, sqlQueryRepeatCountMax in
 		return nil, errors.Errorf("invalid SQL driver: '%s'", u.Scheme)
 	}
 
-	if sqlQueryRepeatCountMax < sqlQueryRepeatCount {
-		sqlQueryRepeatCountMax = sqlQueryRepeatCount
+	for _, o := range opts {
+		o(client)
 	}
 
-	return &Client{
-		driver:                 driver,
-		dsn:                    dsn,
-		query:                  query,
-		sqlQueryRepeatCount:    sqlQueryRepeatCount,
-		sqlQueryRepeatCountMax: sqlQueryRepeatCountMax,
-	}, nil
+	client.dsn = dsn
+	if sqlQueryRepeatCountMax < sqlQueryRepeatCount {
+		client.sqlQueryRepeatCountMax = sqlQueryRepeatCount
+	}
+
+	return client, nil
 }
 
-func (c *Client) GetDriver() string {
+func (c *client) GetDriver() string {
 	return c.driver
 }
 
-func (c *Client) RunQuery(logger log.Logger) (string, error) {
+func (c *client) RunQuery(logger log.Logger) (string, error) {
 	var err error
 
 	if c.conn == nil {
@@ -108,7 +147,10 @@ func (c *Client) RunQuery(logger log.Logger) (string, error) {
 		if err != nil {
 			return c.query, fmt.Errorf("query failed: %v", err)
 		}
-		rows.Close()
+
+		if err := rows.Close(); err != nil {
+			return c.query, fmt.Errorf("query failed: %v", err)
+		}
 	}
 
 	return c.query, nil

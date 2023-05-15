@@ -21,12 +21,13 @@ import (
 
 	"emperror.dev/emperror"
 	"emperror.dev/errors"
+	segmentiokafka "github.com/segmentio/kafka-go"
+
 	"github.com/banzaicloud/allspark/internal/kafka"
 	"github.com/banzaicloud/allspark/internal/platform/log"
 	"github.com/banzaicloud/allspark/internal/request"
 	"github.com/banzaicloud/allspark/internal/sql"
 	"github.com/banzaicloud/allspark/internal/workload"
-	segmentiokafka "github.com/segmentio/kafka-go"
 )
 
 type Server struct {
@@ -36,7 +37,7 @@ type Server struct {
 	requests request.Requests
 	workload workload.Workload
 
-	sqlClient *sql.Client
+	sqlClient sql.Client
 
 	errorHandler emperror.Handler
 	logger       log.Logger
@@ -61,7 +62,7 @@ func (s *Server) SetRequests(requests request.Requests) {
 	s.requests = requests
 }
 
-func (s *Server) SetSQLClient(client *sql.Client) {
+func (s *Server) SetSQLClient(client sql.Client) {
 	s.sqlClient = client
 }
 

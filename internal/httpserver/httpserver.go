@@ -15,6 +15,7 @@
 package httpserver
 
 import (
+	"context"
 	"net/http"
 	"sync"
 
@@ -32,18 +33,30 @@ type Server struct {
 	requests request.Requests
 	workload workload.Workload
 
-	sqlCient *sql.Client
+	sqlCient sql.Client
 
 	listenAddress string
 	endpoint      string
 
 	errorHandler emperror.Handler
 	logger       log.Logger
+
+	listenerFunc ListenerFunc
 }
 
-func New(config Config, logger log.Logger, errorHandler emperror.Handler) *Server {
+type ServerOption func(*Server)
+
+func ServerWithListenerFunc(listener ListenerFunc) ServerOption {
+	return func(srv *Server) {
+		srv.listenerFunc = listener
+	}
+}
+
+type ListenerFunc func(ctx context.Context, listenAddress string, handler http.Handler) error
+
+func New(config Config, logger log.Logger, errorHandler emperror.Handler, options ...ServerOption) *Server {
 	logger = logger.WithField("server", "http")
-	return &Server{
+	srv := &Server{
 		requests: make([]request.Request, 0),
 
 		listenAddress: config.ListenAddress,
@@ -51,7 +64,17 @@ func New(config Config, logger log.Logger, errorHandler emperror.Handler) *Serve
 
 		errorHandler: errorHandler,
 		logger:       logger,
+
+		listenerFunc: func(ctx context.Context, listenAddress string, handler http.Handler) error {
+			return http.ListenAndServe(listenAddress, handler)
+		},
 	}
+
+	for _, option := range options {
+		option(srv)
+	}
+
+	return srv
 }
 
 func (s *Server) SetWorkload(workload workload.Workload) {
@@ -63,7 +86,7 @@ func (s *Server) SetRequests(requests request.Requests) {
 	s.requests = requests
 }
 
-func (s *Server) SetSQLClient(client *sql.Client) {
+func (s *Server) SetSQLClient(client sql.Client) {
 	s.sqlCient = client
 }
 
@@ -91,8 +114,9 @@ func (s *Server) Run() {
 		}
 		c.Data(http.StatusOK, contentType, []byte(response))
 	})
+
 	s.logger.WithField("address", s.listenAddress).Info("starting HTTP server")
-	err := r.Run(s.listenAddress)
+	err := s.listenerFunc(context.Background(), s.listenAddress, r.Handler())
 	if err != nil {
 		s.errorHandler.Handle(err)
 	}

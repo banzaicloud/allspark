@@ -21,6 +21,7 @@ import (
 
 	"emperror.dev/emperror"
 	"emperror.dev/errors"
+
 	"github.com/banzaicloud/allspark/internal/platform/log"
 	"github.com/banzaicloud/allspark/internal/request"
 	"github.com/banzaicloud/allspark/internal/sql"
@@ -31,24 +32,46 @@ type Server struct {
 	requests request.Requests
 	workload workload.Workload
 
-	sqlCient *sql.Client
+	sqlCient sql.Client
 
 	listenAddress string
 
 	errorHandler emperror.Handler
 	logger       log.Logger
+
+	listenerWrapperFunc ListenerWrapperFunc
 }
 
-func New(config Config, logger log.Logger, errorHandler emperror.Handler) *Server {
+type ServerOption func(*Server)
+
+func ServerWithListenerFunc(listenerWrapperFunc ListenerWrapperFunc) ServerOption {
+	return func(srv *Server) {
+		srv.listenerWrapperFunc = listenerWrapperFunc
+	}
+}
+
+type ListenerWrapperFunc func(l net.Listener) (net.Listener, error)
+
+func New(config Config, logger log.Logger, errorHandler emperror.Handler, options ...ServerOption) *Server {
 	logger = logger.WithField("server", "tcp")
-	return &Server{
+	srv := &Server{
 		requests: make(request.Requests, 0),
 
 		listenAddress: config.ListenAddress,
 
 		errorHandler: errorHandler,
 		logger:       logger,
+
+		listenerWrapperFunc: func(l net.Listener) (net.Listener, error) {
+			return l, nil
+		},
 	}
+
+	for _, option := range options {
+		option(srv)
+	}
+
+	return srv
 }
 
 func (s *Server) SetWorkload(workload workload.Workload) {
@@ -60,16 +83,23 @@ func (s *Server) SetRequests(requests request.Requests) {
 	s.requests = requests
 }
 
-func (s *Server) SetSQLClient(client *sql.Client) {
+func (s *Server) SetSQLClient(client sql.Client) {
 	s.sqlCient = client
 }
 
 func (s *Server) Run() {
-	lis, err := net.Listen("tcp", s.listenAddress)
+	listener, err := net.Listen("tcp", s.listenAddress)
 	if err != nil {
 		s.errorHandler.Handle(errors.WrapIf(err, "could not listen"))
 		return
 	}
+
+	lis, err := s.listenerWrapperFunc(listener)
+	if err != nil {
+		s.errorHandler.Handle(errors.WrapIf(err, "could not listen"))
+		return
+	}
+
 	s.logger.WithField("address", s.listenAddress).Info("starting TCP server")
 
 	for {
@@ -101,12 +131,24 @@ func (s *Server) Incoming(c net.Conn) {
 		}()
 	}
 
-	tmp := make([]byte, 4096)
+	i := 0
+	tmp := make([]byte, 16384)
+	sum := 0
 	for {
-		_, err := c.Read(tmp)
+		n, err := c.Read(tmp)
 		if err != nil {
 			break
 		}
+
+		sum += n
+
+		if sum/(1024*1024) > i {
+			c.Write([]byte("data received"))
+			s.logger.WithField("bytes", sum).Info("data received")
+			sum = 0
+		}
+		// if sum%1024*1024 == 0 {
+		// }
 	}
 
 	if s.workload == nil {

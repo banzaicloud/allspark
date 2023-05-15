@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"emperror.dev/errors"
 	"github.com/google/uuid"
@@ -28,11 +29,26 @@ import (
 	"github.com/banzaicloud/allspark/internal/platform/log"
 )
 
-type grpcFactory struct {
+type GRPCFactoryOption func(*grpcFactory)
+
+func WithGRPCDialOptions(opts ...grpc.DialOption) GRPCFactoryOption {
+	return func(f *grpcFactory) {
+		f.dialOptions = opts
+	}
 }
 
-func NewGRPCFactory() Factory {
-	f := &grpcFactory{}
+type grpcFactory struct {
+	dialOptions []grpc.DialOption
+}
+
+func NewGRPCFactory(opts ...GRPCFactoryOption) Factory {
+	f := &grpcFactory{
+		dialOptions: []grpc.DialOption{grpc.WithInsecure()},
+	}
+
+	for _, o := range opts {
+		o(f)
+	}
 
 	return f
 }
@@ -48,6 +64,8 @@ func (f *grpcFactory) CreateRequest(u *url.URL) (Request, error) {
 		Service: p[1],
 		Method:  p[2],
 		count:   parseCountFromURL(u),
+
+		dialOptions: f.dialOptions,
 	}, nil
 }
 
@@ -57,6 +75,8 @@ type GRPCRequest struct {
 	Method  string `json:"method"`
 
 	count uint
+
+	dialOptions []grpc.DialOption
 }
 
 func (request GRPCRequest) Count() uint {
@@ -75,7 +95,11 @@ func (request GRPCRequest) Do(incomingRequestHeaders http.Header, logger log.Log
 
 	ctx := propagateGRPCHeaders(context.Background(), incomingRequestHeaders)
 
-	conn, err := grpc.Dial(request.Host, grpc.WithInsecure())
+	do := []grpc.DialOption{}
+	do = append(do, request.dialOptions...)
+	do = append(do, grpc.WithTimeout(time.Second*3))
+
+	conn, err := grpc.Dial(request.Host, do...)
 	if err != nil {
 		log.Error(err.Error())
 		return
